@@ -4,7 +4,9 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>Which Service</title>
-<link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg%20xmlns='http://www.w3.org/2000/svg'%20viewBox='0%200%2064%2064'%3E%3Crect%20width='64'%20height='64'%20rx='14'%20fill='%23140B28'/%3E%3Crect%20x='10'%20y='10'%20width='12'%20height='12'%20rx='3.5'%20fill='%233A2F5C'/%3E%3Crect%20x='26'%20y='10'%20width='12'%20height='12'%20rx='3.5'%20fill='%23F5B942'/%3E%3Crect%20x='42'%20y='10'%20width='12'%20height='12'%20rx='3.5'%20fill='%233A2F5C'/%3E%3Crect%20x='10'%20y='26'%20width='12'%20height='12'%20rx='3.5'%20fill='%23FF7AC6'/%3E%3Crect%20x='26'%20y='26'%20width='12'%20height='12'%20rx='3.5'%20fill='%233A2F5C'/%3E%3Crect%20x='42'%20y='26'%20width='12'%20height='12'%20rx='3.5'%20fill='%233A2F5C'/%3E%3Crect%20x='10'%20y='42'%20width='12'%20height='12'%20rx='3.5'%20fill='%233A2F5C'/%3E%3Crect%20x='26'%20y='42'%20width='12'%20height='12'%20rx='3.5'%20fill='%233A2F5C'/%3E%3Crect%20x='42'%20y='42'%20width='12'%20height='12'%20rx='3.5'%20fill='%234FE3D6'/%3E%3C/svg%3E">
+<link rel="icon" type="image/png" sizes="32x32" href="assets/icon-32.png">
+<link rel="icon" type="image/png" sizes="192x192" href="assets/icon-192.png">
+<link rel="icon" type="image/svg+xml" href="assets/favicon.svg">
 <link rel="apple-touch-icon" href="assets/apple-touch-icon.png">
 <meta name="theme-color" content="#140B28">
 <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -283,7 +285,7 @@ const SERVICES = [
   {id:'ytpremium',  label:'YouTube Premium', long:'YT Premium', short:'YT Premium', mono:'Y+',          ids:[188],  name:/^youtube( premium.*| free)?$/i, payLabel:'YouTube'},
   {id:'peacock',     label:'Peacock',     short:'Peacock',    mono:'Pk',                              ids:[],       name:/^peacock/i},
   {id:'paramount',   label:'Paramount+',  short:'Paramount+', mono:'P+',                              ids:[],       name:/^paramount/i},
-  {id:'prime',       label:'Prime Video', short:'Prime',      mono:'Pv',                              ids:[9,2100,10], name:/^amazon (prime|video)/i, payLabel:'Amazon Video'},
+  {id:'prime',       label:'Prime Video', short:'Prime',      mono:'Pv',                              ids:[9,2100], name:/^amazon prime video/i, onlyIncluded:true},
   {id:'crunchyroll', label:'Crunchyroll', short:'Crunchy',    mono:'Cr',                              ids:[283],    name:/^crunchyroll/i}
 ];
 // Tile colours for the letter fallback. These only show while a TMDB logo is missing.
@@ -400,7 +402,7 @@ function cellState(svc, prov){
   if (prov === undefined) return 'unk';
   if (prov === null) return 'none';
   if (incOf(prov).some(p => matches(p, svc))) return 'in';
-  if (payOf(prov).some(p => matches(p, svc))) return 'pay';
+  if (!svc.onlyIncluded && payOf(prov).some(p => matches(p, svc))) return 'pay';   // onlyIncluded: show only titles that come with the subscription
   return 'none';
 }
 
@@ -540,7 +542,7 @@ const SAMPLE = [
   {h:{demo:1,media_type:'tv',    name:'Harbor Lights',       first_air_date:'2022-03-01', vote_average:8.1}, prov:{flatrate:[P(8,'Netflix'),P(15,'Hulu'),P(386,'Peacock')], buy:[P(2,'Apple TV')]}},
   {h:{demo:1,media_type:'movie', title:'The Long Quiet',     release_date:'2019-10-11',   vote_average:7.4}, prov:{flatrate:[P(337,'Disney Plus'),P(531,'Paramount Plus')]}},
   {h:{demo:1,media_type:'tv',    name:'Starlit Dojo',        first_air_date:'2023-04-07', vote_average:8.4}, prov:{flatrate:[P(283,'Crunchyroll')]}},
-  {h:{demo:1,media_type:'movie', title:'Paper Kingdoms',     release_date:'2016-06-24',   vote_average:6.9}, prov:{flatrate:[P(350,'Apple TV Plus')], buy:[P(10,'Amazon Video'),P(192,'YouTube')]}},
+  {h:{demo:1,media_type:'movie', title:'Paper Kingdoms',     release_date:'2016-06-24',   vote_average:6.9}, prov:{flatrate:[P(350,'Apple TV Plus')], buy:[P(192,'YouTube')]}},
   {h:{demo:1,media_type:'tv',    name:'Night Shift Kitchen', first_air_date:'2020-09-18', vote_average:7.7}, prov:{flatrate:[P(1899,'HBO Max'),P(2528,'YouTube TV')]}},
   {h:{demo:1,media_type:'movie', title:'Salt Road',          release_date:'2024-02-02',   vote_average:7.0}, prov:{}}
 ];

@@ -60,10 +60,10 @@ The hosted page is the same code for everyone: each visitor pastes their own TMD
 
 | File | What it is |
 | --- | --- |
-| `index.html` | The whole app: markup, styles and script. The favicon is embedded in it. |
-| `assets/favicon.svg` | The icon as a standalone SVG. |
+| `index.html` | The whole app: markup, styles and script. |
+| `assets/favicon.svg` | The icon as an SVG (Chrome, Firefox and Edge tabs). |
+| `assets/icon-32.png`, `assets/icon-192.png` | PNG tab icons. Safari needs these. |
 | `assets/apple-touch-icon.png` | 180px icon used when the page is added to an iPhone or iPad home screen. |
-| `assets/icon-32.png` | 32px PNG version of the icon. |
 | `docs/screenshot.png` | The screenshot above. |
 
 ## Privacy and security
