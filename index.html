@@ -113,15 +113,56 @@ select,.ghost{background:var(--surface);border:1px solid var(--line);border-radi
 .info h3{margin:0;font:700 1.3rem/1.2 var(--font);letter-spacing:-.01em;overflow-wrap:anywhere}
 .meta{margin:0;display:flex;flex-wrap:wrap;gap:0 12px;font-size:.9rem;color:var(--muted)}
 .kind{font-weight:600}
-.verdict{margin:6px 0 0;font-size:1rem;align-self:flex-start;padding:6px 12px;border-radius:10px}
-.verdict.good{color:var(--good);background:var(--good-bg);font-weight:600}
-.verdict.warn{color:var(--rent);background:var(--rent-bg);font-weight:600}
-.verdict.none{color:var(--muted);background:var(--none-bg)}
-.verdict a{color:var(--link);margin-left:8px;white-space:nowrap;font-weight:500}
+.meta a{color:var(--link);font-weight:500}
+.overview{margin:6px 0 0;max-width:66ch;line-height:1.55;display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow:hidden}
+.overview.open{display:block;-webkit-line-clamp:unset;overflow:visible}
+.overview.empty{color:var(--muted)}
+.more{align-self:flex-start;margin-top:2px;font-size:.9rem}
+.note{margin:6px 0 0;font-size:.9rem;color:var(--muted)}
+
+.cast{grid-column:1 / -1;list-style:none;margin:6px 0 0;padding:0 0 4px;display:flex;align-items:center;gap:8px;overflow-x:auto}
+.cast:empty{display:none}
+.cast-label{flex:none;font-size:.85rem;font-weight:600;color:var(--muted);margin-right:2px}
+.cast-chip{flex:none;display:flex;align-items:center;gap:8px;padding:4px 12px 4px 4px;border:1px solid var(--line);border-radius:999px;background:var(--surface);color:inherit;text-decoration:none}
+a.cast-chip:hover{border-color:var(--muted)}
+.face{width:36px;height:36px;border-radius:50%;object-fit:cover;flex:none;display:grid;place-items:center;font-size:.8rem;font-weight:700;background:hsl(var(--h) 60% 82%);color:hsl(var(--h) 55% 28%)}
+.cast-text{display:flex;flex-direction:column;min-width:0}
+.cast-name{font-weight:600;font-size:.85rem;line-height:1.2;white-space:nowrap}
+.cast-role{font-size:.72rem;line-height:1.2;color:var(--muted);white-space:nowrap;max-width:15ch;overflow:hidden;text-overflow:ellipsis}
+@media (prefers-color-scheme:dark){.face{background:hsl(var(--h) 38% 26%);color:hsl(var(--h) 80% 84%)}}
+
+.person-head{display:flex;gap:20px;align-items:flex-start}
+.person-photo{width:120px;height:180px;flex:none;border-radius:14px;overflow:hidden;display:grid;place-items:center;font-size:2.4rem;font-weight:800;background:hsl(var(--h) 65% 84%);color:hsl(var(--h) 55% 28%)}
+.person-photo img{width:100%;height:100%;object-fit:cover;display:block}
+@media (prefers-color-scheme:dark){.person-photo.noimg{background:hsl(var(--h) 40% 24%);color:hsl(var(--h) 85% 82%)}}
+.person-name{margin:0;font:800 1.9rem/1.1 var(--font);letter-spacing:-.02em}
+.facts{margin:14px 0 0;display:grid;grid-template-columns:auto 1fr;gap:4px 18px;font-size:.95rem}
+.facts dt{color:var(--muted)}
+.facts dd{margin:0;font-weight:600;min-width:0;overflow-wrap:anywhere}
+#personBody{display:flex;flex-direction:column;gap:28px}
+.sect{margin:0 0 10px;font:700 1.2rem/1.2 var(--font)}
+.bio p{margin:0 0 .8em;max-width:68ch}
+.film-head{display:flex;align-items:baseline;gap:12px}
+.seg{display:inline-flex;gap:2px;padding:3px;background:var(--surface);border:1px solid var(--line);border-radius:999px}
+.seg button{background:none;border:0;border-radius:999px;padding:6px 14px;cursor:pointer;color:var(--muted);font-weight:600;font-size:.9rem}
+.seg button[aria-pressed="true"]{background:var(--brand);color:var(--on-brand)}
+.filmo{list-style:none;margin:14px 0 10px;padding:0}
+.film{display:grid;grid-template-columns:44px minmax(0,1fr);gap:14px;align-items:center;width:100%;text-align:left;background:none;border:0;border-top:1px solid var(--line);padding:10px 6px;cursor:pointer;border-radius:8px}
+.film:hover{background:color-mix(in srgb,var(--ink) 6%,transparent)}
+.film-poster{width:44px;height:66px;border-radius:6px;overflow:hidden;display:grid;place-items:center;font-weight:800;background:var(--line);color:var(--muted)}
+.film-poster.noimg{background:hsl(var(--h) 65% 84%);color:hsl(var(--h) 55% 28%)}
+@media (prefers-color-scheme:dark){.film-poster.noimg{background:hsl(var(--h) 40% 24%);color:hsl(var(--h) 85% 82%)}}
+.film-poster img{width:100%;height:100%;object-fit:cover;display:block}
+.film-title{display:block;font-weight:600;line-height:1.3}
+.film-meta{display:flex;flex-wrap:wrap;gap:0 12px;font-size:.85rem;color:var(--muted)}
 
 /* The marquee strip */
 .cells{grid-column:1 / -1;display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:10px 4px;list-style:none;margin:10px 0 0;padding:0}
-.cell{display:flex;flex-direction:column;align-items:center;gap:5px;min-width:0;text-align:center;padding:10px 2px 8px;border-radius:14px}
+.cell{min-width:0;border-radius:14px}
+.ci{display:flex;flex-direction:column;align-items:center;gap:5px;min-width:0;text-align:center;padding:10px 0 8px;border-radius:14px;color:inherit;text-decoration:none}
+a.ci{cursor:pointer}
+a.ci:hover{background:color-mix(in srgb,var(--ink) 7%,transparent)}
+a.ci:hover .svc{text-decoration:underline}
 .cell.in{background:var(--good-bg)}
 .cell.pay{background:var(--rent-bg)}
 .cell .logo{width:44px;height:44px;border-radius:12px}
@@ -166,7 +207,8 @@ footer{color:var(--muted);font-size:.8rem;display:flex;flex-direction:column;gap
 
 @media (min-width:640px){
   .row{grid-template-columns:84px minmax(0,1fr)}
-  .poster{width:84px;height:126px;grid-row:1 / span 2;align-self:start}
+  .poster{width:84px;height:126px;grid-row:1 / span 3;align-self:start}
+  .cast{grid-column:2;flex-wrap:wrap;overflow-x:visible}
   .cells{grid-column:2;grid-template-columns:repeat(6,minmax(0,1fr));gap:10px 2px}
 }
 @media (min-width:940px){
@@ -176,11 +218,12 @@ footer{color:var(--muted);font-size:.8rem;display:flex;flex-direction:column;gap
   .long{display:inline}.short{display:none}
 }
 @media (max-width:639px){
-  .cell{padding-inline:0}
   .cell .svc{font-size:.6rem;letter-spacing:-.01em}
   .cell .st{font-size:.62rem}
 }
 @media (max-width:560px){
+  .person-photo{width:96px;height:144px}
+  .person-name{font-size:1.5rem}
   .svc-list{display:grid;grid-template-columns:repeat(2,minmax(0,1fr))}
   .svc-item{padding:6px 8px 6px 6px}
   .search input{height:54px;font-size:1.05rem;padding-inline:16px}
@@ -219,6 +262,7 @@ footer{color:var(--muted);font-size:.8rem;display:flex;flex-direction:column;gap
           <li><span class="badge pay" aria-hidden="true">$</span> Rent or buy</li>
           <li><span class="dim" aria-hidden="true"></span> Not available</li>
         </ul>
+        <p class="hint">Select a lit service in a result to open that service's search for the title.</p>
       </div>
     </section>
 
@@ -227,6 +271,11 @@ footer{color:var(--muted);font-size:.8rem;display:flex;flex-direction:column;gap
       <button type="button" class="linkbtn" id="bannerKey">Add your TMDB key in Settings</button>
     </div>
     <ol class="results" id="results"></ol>
+  </div>
+
+  <div class="pane" id="panePerson" role="region" aria-label="Person" hidden>
+    <div><button type="button" class="ghost" id="personBack">Back to results</button></div>
+    <div id="personBody" aria-live="polite"></div>
   </div>
 
   <div class="pane" id="paneSettings" role="tabpanel" aria-labelledby="tabSettings" hidden>
@@ -282,7 +331,7 @@ const SERVICES = [
   {id:'netflix',     label:'Netflix',     short:'Netflix',    mono:'N',                               ids:[8,1796], name:/^netflix/i},
   {id:'youtubetv',   label:'YouTube TV',  short:'YouTube TV', mono:'YT',                              ids:[],       name:/^youtube tv/i},
   {id:'apple',       label:'Apple TV+',   short:'Apple TV+',  mono:'TV+', sub:'via Apple One Premier', ids:[350,2],  name:/^apple tv/i, payLabel:'Apple TV'},
-  {id:'ytpremium',  label:'YouTube Premium', long:'YT Premium', short:'YT Premium', mono:'Y+',          ids:[188],  name:/^youtube( premium.*| free)?$/i, payLabel:'YouTube'},
+  {id:'ytpremium',  label:'YouTube Premium', long:'YT Premium', short:'YT Premium', mono:'Y+',          ids:[188],  name:/^youtube premium/i, onlyIncluded:true},
   {id:'peacock',     label:'Peacock',     short:'Peacock',    mono:'Pk',                              ids:[],       name:/^peacock/i},
   {id:'paramount',   label:'Paramount+',  short:'Paramount+', mono:'P+',                              ids:[],       name:/^paramount/i},
   {id:'prime',       label:'Prime Video', short:'Prime',      mono:'Pv',                              ids:[9,2100], name:/^amazon prime video/i, onlyIncluded:true},
@@ -290,6 +339,21 @@ const SERVICES = [
 ];
 // Tile colours for the letter fallback. These only show while a TMDB logo is missing.
 const TILE = {disney:'#1B4DD6',hulu:'#14A265',hbo:'#6B35D9',netflix:'#D81F26',youtubetv:'#E0283C',ytpremium:'#A3162F',apple:'#2B2B33',peacock:'#C99A00',paramount:'#1E6BE6',prime:'#0F79AF',crunchyroll:'#E8691A'};
+// Where a lit cell sends you. TMDB can say a service carries a title but has no link to the title's own page,
+// so each service opens its own search for the title. Edit a line here if a service changes its address.
+const SEARCH = {
+  disney:      q => 'https://www.disneyplus.com/search/'+q,
+  hulu:        q => 'https://www.hulu.com/search?q='+q,
+  hbo:         q => 'https://play.hbomax.com/search?q='+q,
+  netflix:     q => 'https://www.netflix.com/search?q='+q,
+  youtubetv:   q => 'https://tv.youtube.com/search?q='+q,
+  ytpremium:   q => 'https://www.youtube.com/results?search_query='+q,
+  apple:       q => 'https://tv.apple.com/search?term='+q,
+  peacock:     q => 'https://www.peacocktv.com/search?q='+q,
+  paramount:   q => 'https://www.paramountplus.com/search/?q='+q,
+  prime:       q => 'https://www.amazon.com/s?k='+q+'&i=instant-video',
+  crunchyroll: q => 'https://www.crunchyroll.com/search?q='+q
+};
 const REGIONS = {US:'United States',CA:'Canada',GB:'United Kingdom',AU:'Australia',DE:'Germany',FR:'France',ES:'Spain',IT:'Italy',MX:'Mexico',BR:'Brazil',JP:'Japan',IN:'India'};
 
 /* ---------- Storage (per browser) ---------- */
@@ -311,6 +375,9 @@ let rows = [];            // [{h, prov}] where prov: object | null (no data) | u
 let seq = 0;
 let pendingQ = '';        // a search typed before a key was saved
 const provCache = new Map();
+const castCache = new Map();    // 'movie:123' -> [{id,name,character,profile_path}]
+const personCache = new Map();  // person id -> {p, c}
+let currentPerson = '';
 const logoTried = new Set();
 
 const $ = id => document.getElementById(id);
@@ -421,7 +488,21 @@ function verdictFor(cells, prov){
 const STATE = {in:'Included', pay:'Rent or buy', none:'', unk:''};
 const SPOKEN = {in:'included with subscription', pay:'available to rent or buy', none:'not available', unk:'availability unknown'};
 
+
 const hue = t => { let n = 0; for (const c of String(t)) n = (n*31 + c.charCodeAt(0)) % 360; return n; };
+const initials = n => String(n||'?').split(/\s+/).filter(Boolean).slice(0,2).map(w => w[0]).join('').toUpperCase();
+const keyOf = h => h.media_type+':'+h.id;
+
+function castChips(list){
+  if (!list || !list.length) return '';
+  return '<li class="cast-label">Cast</li>'+list.map(c => {
+    const face = c.profile_path
+      ? '<img class="face" src="https://image.tmdb.org/t/p/w92'+esc(c.profile_path)+'" alt="" width="36" height="36" loading="lazy">'
+      : '<span class="face" style="--h:'+hue(c.name)+'">'+esc(initials(c.name))+'</span>';
+    const inner = face+'<span class="cast-text"><span class="cast-name">'+esc(c.name)+'</span>'+(c.character ? '<span class="cast-role">'+esc(c.character)+'</span>' : '')+'</span>';
+    return c.id ? '<li><a class="cast-chip" href="#person='+c.id+'">'+inner+'</a></li>' : '<li><span class="cast-chip">'+inner+'</span></li>';
+  }).join('');
+}
 
 function rowHtml(r){
   const h = r.h;
@@ -432,25 +513,66 @@ function rowHtml(r){
   const cells = SERVICES.map(svc => ({svc, state:cellState(svc, r.prov)}));
   const v = verdictFor(cells, r.prov);
   r.rank = v.rank;
-  const link = (r.prov && r.prov.link && !h.demo) ? ' <a href="'+esc(r.prov.link)+'" target="_blank" rel="noopener">Watch options &#8599;</a>' : '';
+  const watch = (r.prov && r.prov.link && !h.demo) ? '<a href="'+esc(r.prov.link)+'" target="_blank" rel="noopener">All watch options &#8599;</a>' : '';
   const poster = h.poster_path
     ? '<img src="https://image.tmdb.org/t/p/w154'+esc(h.poster_path)+'" alt="" width="56" height="84" loading="lazy">'
     : esc(title.charAt(0).toUpperCase());
   let lit = 0;
+  const q = encodeURIComponent(title);
   const cellHtml = cells.map(c => {
     const on = c.state === 'in' || c.state === 'pay';
     const badge = on ? '<span class="badge '+c.state+'">'+(c.state === 'in' ? '&#10003;' : '$')+'</span>' : '';
-    return '<li class="cell '+c.state+'" style="--i:'+(on ? lit++ : 0)+'" aria-label="'+esc(c.svc.label+': '+SPOKEN[c.state])+'">'
-      +'<span class="lg" aria-hidden="true">'+logoHtml(c.svc,36)+badge+'</span>'
+    const inner = '<span class="lg" aria-hidden="true">'+logoHtml(c.svc,36)+badge+'</span>'
       +'<span class="svc" aria-hidden="true"><span class="long">'+esc(c.svc.long || c.svc.label)+'</span><span class="short">'+esc(c.svc.short)+'</span></span>'
-      +'<span class="st" aria-hidden="true">'+(on ? STATE[c.state] : '')+'</span></li>';
+      +'<span class="st" aria-hidden="true">'+(on ? STATE[c.state] : '')+'</span>';
+    const spoken = c.svc.label+': '+SPOKEN[c.state];
+    const style = ' style="--i:'+(on ? lit++ : 0)+'"';
+    // Only a service that has the title is a link.
+    if (on && !h.demo && SEARCH[c.svc.id])
+      return '<li class="cell '+c.state+'"'+style+'><a class="ci" href="'+esc(SEARCH[c.svc.id](q))+'" target="_blank" rel="noopener noreferrer" aria-label="'+esc(spoken+'. Search '+c.svc.label+' for '+title)+'" title="'+esc('Search '+c.svc.label+' for “'+title+'”')+'">'+inner+'</a></li>';
+    return '<li class="cell '+c.state+'"'+style+' aria-label="'+esc(spoken)+'"><div class="ci">'+inner+'</div></li>';
   }).join('');
+  const ov = (h.overview || '').trim();
+  const overview = ov
+    ? '<p class="overview">'+esc(ov)+'</p>'+(ov.length > 230 ? '<button type="button" class="linkbtn more" aria-expanded="false">More</button>' : '')
+    : '<p class="overview empty">No description available.</p>';
+  const cast = h.demo ? castChips(h.cast) : castChips(castCache.get(keyOf(h)));
   return '<li class="row">'
     +'<div class="poster'+(h.poster_path ? '' : ' noimg')+'" style="--h:'+hue(title)+'">'+poster+'</div>'
     +'<div class="info"><h3>'+esc(title)+'</h3>'
-    +'<p class="meta"><span class="kind">'+kind+'</span>'+(year?'<span>'+esc(year)+'</span>':'')+(h.vote_average?'<span>&#9733; '+Number(h.vote_average).toFixed(1)+'</span>':'')+'</p>'
-    +'<p class="verdict '+v.tone+'">'+esc(v.text)+link+'</p></div>'
-    +'<ul class="cells">'+cellHtml+'</ul></li>';
+    +'<p class="meta"><span class="kind">'+kind+'</span>'+(year?'<span>'+esc(year)+'</span>':'')+(h.vote_average?'<span>&#9733; '+Number(h.vote_average).toFixed(1)+'</span>':'')+watch+'</p>'
+    +overview
+    +(r.prov === undefined ? '<p class="note">Could not load where this streams. Search again to retry.</p>' : '')
+    +'<p class="sr">'+esc(v.text)+'</p></div>'
+    +'<ul class="cells">'+cellHtml+'</ul>'
+    +'<ul class="cast" aria-label="Cast" data-key="'+esc(keyOf(h))+'">'+cast+'</ul></li>';
+}
+
+// The "More" button on a long description.
+$('results').addEventListener('click', e => {
+  const b = e.target.closest && e.target.closest('.more');
+  if (!b) return;
+  const p = b.previousElementSibling;
+  const open = p.classList.toggle('open');
+  b.textContent = open ? 'Less' : 'More';
+  b.setAttribute('aria-expanded', String(open));
+});
+
+// Fetches the cast for each result after the results are on screen, so a slow cast never delays availability.
+async function loadCasts(list){
+  await Promise.all(list.map(async ({h}) => {
+    if (h.demo) return;
+    const k = keyOf(h);
+    if (!castCache.has(k)){
+      try{
+        const d = await tmdb('/'+h.media_type+'/'+h.id+'/credits');
+        castCache.set(k, (d.cast || []).slice(0,8).map(c => ({id:c.id, name:c.name, character:c.character, profile_path:c.profile_path})));
+      }catch(e){ if (e && e.status === 401) return; castCache.set(k, []); }
+    }
+    const out = $('results');
+    if (!out.querySelectorAll) return;
+    out.querySelectorAll('.cast').forEach(u => { if (u.getAttribute('data-key') === k) u.innerHTML = castChips(castCache.get(k)); });
+  }));
 }
 
 function render(){
@@ -491,16 +613,23 @@ function showError(e){
 
 /* ---------- Tabs ---------- */
 function showTab(name){
-  const settings = name === 'settings';
-  $('paneSearch').hidden = settings;
+  const settings = name === 'settings', person = name === 'person';
+  $('paneSearch').hidden = settings || person;
   $('paneSettings').hidden = !settings;
-  $('tabSearch').setAttribute('aria-selected', String(!settings));
+  $('panePerson').hidden = !person;
+  $('tabSearch').setAttribute('aria-selected', String(name === 'search'));
   $('tabSettings').setAttribute('aria-selected', String(settings));
   $('tabSearch').tabIndex = settings ? -1 : 0;
   $('tabSettings').tabIndex = settings ? 0 : -1;
 }
-$('tabSearch').addEventListener('click', () => showTab('search'));
-$('tabSettings').addEventListener('click', () => showTab('settings'));
+// Leaving a person page by any route other than Back clears its address.
+function clearPersonHash(){
+  if (/^#person=/.test(location.hash || '')){
+    try{ history.replaceState(null, '', location.pathname + location.search); }catch(e){ location.hash = ''; }
+  }
+}
+$('tabSearch').addEventListener('click', () => { clearPersonHash(); showTab('search'); });
+$('tabSettings').addEventListener('click', () => { clearPersonHash(); showTab('settings'); });
 $('tabs').addEventListener('keydown', e => {
   if (e.key !== 'ArrowLeft' && e.key !== 'ArrowRight') return;
   e.preventDefault();
@@ -532,19 +661,156 @@ async function runSearch(q){
     setStatus('Checking where '+hits.length+' titles stream in '+REGIONS[REGION]+'…', 'busy');
     const got = await Promise.all(hits.map(async h => ({h, prov: await providersFor(h).catch(e => { if (e.status === 401) throw e; return undefined; })})));
     if (id !== seq) return;
-    rows = got; render(); renderServices();
+    rows = got; render(); renderServices(); loadCasts(got);
   }catch(e){ if (id === seq) showError(e); }
 }
+
+/* ---------- Person page ---------- */
+const NOISE_GENRES = [10767, 10763, 10764];   // talk, news, reality: appearances as themselves
+const fmtDate = iso => {
+  const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(iso || '');
+  if (!m) return '';
+  return new Date(+m[1], +m[2]-1, +m[3]).toLocaleDateString('en-US', {year:'numeric', month:'long', day:'numeric'});
+};
+const ageOn = (born, end) => {
+  const b = /^(\d{4})-(\d{2})-(\d{2})$/.exec(born || ''); if (!b) return null;
+  const e = /^(\d{4})-(\d{2})-(\d{2})$/.exec(end || '');
+  const now = e ? new Date(+e[1], +e[2]-1, +e[3]) : new Date();
+  let a = now.getFullYear() - +b[1];
+  if (now.getMonth() < +b[2]-1 || (now.getMonth() === +b[2]-1 && now.getDate() < +b[3])) a--;
+  return a;
+};
+let film = {all:[], type:'all', shown:20};
+let bio = {text:'', open:false};
+
+function bioHtml(){
+  const t = bio.text.trim();
+  if (!t) return '<p class="hint">TMDB has no biography for this person yet.</p>';
+  let shown = t, more = false;
+  if (!bio.open && t.length > 700){ shown = t.slice(0, t.lastIndexOf(' ', 700)) + '…'; more = true; }
+  return shown.split(/\n+/).map(x => '<p>'+esc(x)+'</p>').join('')
+    + ((more || bio.open) && t.length > 700 ? '<button type="button" class="linkbtn" data-act="bio">'+(bio.open ? 'Show less' : 'Read more')+'</button>' : '');
+}
+
+function filmList(){
+  const items = film.all.filter(f => film.type === 'all' || f.media_type === film.type);
+  const page = items.slice(0, film.shown);
+  const rowsHtml = page.map(f => {
+    const t = f.title || f.name || 'Untitled';
+    const y = (f.release_date || f.first_air_date || '').slice(0,4);
+    const img = f.poster_path ? '<img src="https://image.tmdb.org/t/p/w92'+esc(f.poster_path)+'" alt="" width="44" height="66" loading="lazy">' : esc(t.charAt(0).toUpperCase());
+    return '<li><button type="button" class="film" data-title="'+esc(t)+'" title="Check where “'+esc(t)+'” streams">'
+      +'<span class="film-poster'+(f.poster_path ? '' : ' noimg')+'" style="--h:'+hue(t)+'">'+img+'</span>'
+      +'<span><span class="film-title">'+esc(t)+'</span><span class="film-meta"><span>'+(f.media_type === 'tv' ? 'Series' : 'Movie')+'</span>'+(y ? '<span>'+esc(y)+'</span>' : '')+(f.character ? '<span>as '+esc(f.character)+'</span>' : '')+'</span></span></button></li>';
+  }).join('');
+  const left = items.length - page.length;
+  return {html: rowsHtml || '<li class="hint">No credits listed.</li>', left, total: items.length};
+}
+
+function paintFilm(){
+  const {html, left, total} = filmList();
+  $('filmList').innerHTML = html;
+  $('filmMore').hidden = left <= 0;
+  $('filmMore').textContent = 'Show '+Math.min(left, 30)+' more';
+  $('filmCount').textContent = total+(total === 1 ? ' credit' : ' credits');
+  document.querySelectorAll && document.querySelectorAll('#filmSeg button').forEach(b => b.setAttribute('aria-pressed', String(b.getAttribute('data-type') === film.type)));
+}
+
+function renderPerson({p, c}){
+  const name = p.name || 'Unknown';
+  let credits = (c.cast || []).filter(x => (x.media_type === 'movie' || x.media_type === 'tv')
+    && !(x.genre_ids || []).some(g => NOISE_GENRES.includes(g))
+    && !/\b(self|himself|herself|themselves)\b/i.test(x.character || ''));
+  if (!credits.length) credits = (c.crew || []).filter(x => x.media_type === 'movie' || x.media_type === 'tv').map(x => ({...x, character:x.job}));
+  const seen = new Set();
+  credits = credits.filter(x => { const k = x.media_type+':'+x.id; if (seen.has(k)) return false; seen.add(k); return true; });
+  const dateOf = x => x.release_date || x.first_air_date || '';
+  credits.sort((a, b) => (dateOf(b) ? 1 : 0) - (dateOf(a) ? 1 : 0) || dateOf(b).localeCompare(dateOf(a)));
+  film = {all:credits, type:'all', shown:20};
+  bio = {text:p.biography || '', open:false};
+  const age = ageOn(p.birthday, p.deathday);
+  const facts = [];
+  if (p.known_for_department) facts.push(['Known for', p.known_for_department]);
+  if (p.birthday) facts.push(['Born', fmtDate(p.birthday)+(age !== null && !p.deathday ? ' (age '+age+')' : '')]);
+  if (p.place_of_birth) facts.push(['Birthplace', p.place_of_birth]);
+  if (p.deathday) facts.push(['Died', fmtDate(p.deathday)+(age !== null ? ' (age '+age+')' : '')]);
+  if ((p.also_known_as || []).length) facts.push(['Also known as', p.also_known_as.slice(0,3).join(', ')]);
+  const photo = p.profile_path ? '<img src="https://image.tmdb.org/t/p/w185'+esc(p.profile_path)+'" alt="Portrait of '+esc(name)+'">' : esc(initials(name));
+  const nMovies = credits.filter(x => x.media_type === 'movie').length, nTv = credits.length - nMovies;
+  $('personBody').innerHTML =
+    '<section class="person-head"><div class="person-photo'+(p.profile_path ? '' : ' noimg')+'" style="--h:'+hue(name)+'">'+photo+'</div>'
+    +'<div><h2 class="person-name">'+esc(name)+'</h2><dl class="facts">'+facts.map(f => '<dt>'+esc(f[0])+'</dt><dd>'+esc(f[1])+'</dd>').join('')+'</dl></div></section>'
+    +'<section><h3 class="sect">Biography</h3><div class="bio" id="bioBox">'+bioHtml()+'</div></section>'
+    +'<section><div class="film-head"><h3 class="sect">Filmography</h3><span class="hint" id="filmCount"></span></div>'
+    +'<div class="seg" id="filmSeg" role="group" aria-label="Filter credits">'
+    +'<button type="button" data-type="all" aria-pressed="true">All</button>'
+    +'<button type="button" data-type="movie" aria-pressed="false">Movies ('+nMovies+')</button>'
+    +'<button type="button" data-type="tv" aria-pressed="false">TV ('+nTv+')</button></div>'
+    +'<ul class="filmo" id="filmList"></ul><button type="button" class="ghost" id="filmMore" hidden></button>'
+    +'<p class="hint">Select a title to see where it streams. Biography and credits from TMDB.</p></section>';
+  paintFilm();
+}
+
+async function openPerson(id){
+  currentPerson = id;
+  showTab('person');
+  try{ window.scrollTo && window.scrollTo(0, 0); }catch(e){}
+  $('personBody').innerHTML = '<p class="status busy">Loading…</p>';
+  try{
+    let d = personCache.get(id);
+    if (!d){
+      const [p, c] = await Promise.all([tmdb('/person/'+id), tmdb('/person/'+id+'/combined_credits')]);
+      d = {p, c}; personCache.set(id, d);
+    }
+    if (currentPerson !== id) return;
+    renderPerson(d);
+  }catch(e){
+    if (currentPerson !== id) return;
+    $('personBody').innerHTML = '<p class="status err">'+(e && e.status === 404 ? 'TMDB has no page for this person.' : 'Could not load this person. '+(e && e.status ? 'TMDB returned error '+e.status+'.' : envHint()))+'</p>';
+  }
+}
+
+function searchTitle(t){
+  $('q').value = t;
+  clearPersonHash();
+  showTab('search');
+  runSearch(t);
+}
+
+let personNav = 0;   // how many person pages were opened inside this visit, so Back can use history
+function route(){
+  const m = /^#person=(\d+)$/.exec(location.hash || '');
+  if (m){
+    if (DEMO){ clearPersonHash(); return; }
+    personNav++; openPerson(m[1]);
+  } else if (!$('panePerson').hidden){
+    showTab('search');
+  }
+}
+if (window.addEventListener) window.addEventListener('hashchange', route);
+
+$('personBack').addEventListener('click', () => {
+  if (personNav > 0){ personNav--; try{ history.back(); return; }catch(e){} }
+  clearPersonHash(); showTab('search');
+});
+$('personBody').addEventListener('click', e => {
+  const t = e.target.closest ? e.target : null;
+  if (!t) return;
+  const film_ = t.closest('.film'); if (film_){ searchTitle(film_.getAttribute('data-title')); return; }
+  const seg = t.closest('#filmSeg button'); if (seg){ film.type = seg.getAttribute('data-type'); film.shown = 20; paintFilm(); return; }
+  if (t.closest('#filmMore')){ film.shown += 30; paintFilm(); return; }
+  if (t.closest('[data-act="bio"]')){ bio.open = !bio.open; $('bioBox').innerHTML = bioHtml(); }
+});
 
 /* ---------- Sample data (invented titles) ---------- */
 const P = (id,name) => ({provider_id:id, provider_name:name});
 const SAMPLE = [
-  {h:{demo:1,media_type:'tv',    name:'Harbor Lights',       first_air_date:'2022-03-01', vote_average:8.1}, prov:{flatrate:[P(8,'Netflix'),P(15,'Hulu'),P(386,'Peacock')], buy:[P(2,'Apple TV')]}},
-  {h:{demo:1,media_type:'movie', title:'The Long Quiet',     release_date:'2019-10-11',   vote_average:7.4}, prov:{flatrate:[P(337,'Disney Plus'),P(531,'Paramount Plus')]}},
-  {h:{demo:1,media_type:'tv',    name:'Starlit Dojo',        first_air_date:'2023-04-07', vote_average:8.4}, prov:{flatrate:[P(283,'Crunchyroll')]}},
-  {h:{demo:1,media_type:'movie', title:'Paper Kingdoms',     release_date:'2016-06-24',   vote_average:6.9}, prov:{flatrate:[P(350,'Apple TV Plus')], buy:[P(192,'YouTube')]}},
-  {h:{demo:1,media_type:'tv',    name:'Night Shift Kitchen', first_air_date:'2020-09-18', vote_average:7.7}, prov:{flatrate:[P(1899,'HBO Max'),P(2528,'YouTube TV')]}},
-  {h:{demo:1,media_type:'movie', title:'Salt Road',          release_date:'2024-02-02',   vote_average:7.0}, prov:{}}
+  {h:{demo:1,media_type:'tv',    name:'Harbor Lights',       first_air_date:'2022-03-01', vote_average:8.1, overview:'When the lighthouse keeper of a fading port town vanishes, his estranged daughter returns to settle the estate and finds a town that would rather she left things alone.', cast:[{name:'Maren Ostrow',character:'Wren Halloran'},{name:'Dev Calloway',character:'Sheriff Pike'},{name:'Ines Valdivia',character:'Mara Voss'},{name:'Tobias Ekwueme',character:'Harlan'}]}, prov:{flatrate:[P(8,'Netflix'),P(15,'Hulu'),P(386,'Peacock')], buy:[P(2,'Apple TV')]}},
+  {h:{demo:1,media_type:'movie', title:'The Long Quiet',     release_date:'2019-10-11',   vote_average:7.4, overview:'A retired sound engineer is hired to record the last winter at a remote observatory, and begins to hear something in the silence that is not wind. A slow, patient thriller about listening too closely, with a long and unsettling final act that rewards people who stay to the end.', cast:[{name:'Sunniva Brandt',character:'Ilse'},{name:'Kofi Mensah-Arai',character:'Dr. Okafor'},{name:'Lucan Reyes',character:'Teodor'}]}, prov:{flatrate:[P(337,'Disney Plus'),P(531,'Paramount Plus')]}},
+  {h:{demo:1,media_type:'tv',    name:'Starlit Dojo',        first_air_date:'2023-04-07', vote_average:8.4, overview:'A shy student joins a night-school martial arts club that only meets under a full moon, and learns its masters are guarding more than a tradition.', cast:[{name:'Haruka Ienaga',character:'Mio'},{name:'Benedikt Aalto',character:'Master Sora'}]}, prov:{flatrate:[P(283,'Crunchyroll')]}},
+  {h:{demo:1,media_type:'movie', title:'Paper Kingdoms',     release_date:'2016-06-24',   vote_average:6.9, overview:'Two rival origami artists compete for a commission that will decide which of their families keeps the family workshop.', cast:[{name:'Odalys Marchetti',character:'Cosima'},{name:'Rennick Abara',character:'Julian'},{name:'Petra Lindqvist',character:'Aunt Edda'}]}, prov:{flatrate:[P(350,'Apple TV Plus')]}},
+  {h:{demo:1,media_type:'tv',    name:'Night Shift Kitchen', first_air_date:'2020-09-18', vote_average:7.7, overview:'The overnight crew of a downtown diner trade stories, secrets and bad coffee while the city sleeps.', cast:[{name:'Marisol Thackeray',character:'Dot'},{name:'Imran Vestergaard',character:'Cal'}]}, prov:{flatrate:[P(1899,'HBO Max'),P(2528,'YouTube TV'),P(188,'YouTube Premium')]}},
+  {h:{demo:1,media_type:'movie', title:'Salt Road',          release_date:'2024-02-02',   vote_average:7.0, overview:'A truck driver crossing a salt flat picks up a hitchhiker who claims to know where the road ends.', cast:[{name:'Anselm Okonkwo-Rhee',character:'Dale'}]}, prov:{}}
 ];
 
 /* ---------- Services area: hide and show ---------- */
@@ -623,7 +889,7 @@ setSvcs(SHOW_SVCS, false);
 renderServices();
 refreshKeyUi();
 if (DEMO) enterSample();
-else { setStatus('Search for a title to see where it streams in '+REGIONS[REGION]+'.'); loadLogos(); }
+else { setStatus('Search for a title to see where it streams in '+REGIONS[REGION]+'.'); loadLogos(); route(); }
 </script>
 </body>
 </html>
