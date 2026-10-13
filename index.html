@@ -35,7 +35,7 @@
 *{box-sizing:border-box}
 html,body{margin:0}
 body{background:var(--bg);color:var(--ink);font:400 1rem/1.5 var(--font);padding-inline:16px;padding-block:20px 56px}
-.wrap{max-width:880px;margin-inline:auto;display:flex;flex-direction:column;gap:24px}
+.wrap{max-width:960px;margin-inline:auto;display:flex;flex-direction:column;gap:24px}
 .sr{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}
 button,input,select{font:inherit;color:inherit}
 :focus-visible{outline:3px solid var(--focus);outline-offset:2px}
@@ -118,7 +118,7 @@ select,.ghost{background:var(--surface);border:1px solid var(--line);border-radi
 .verdict a{color:var(--link);margin-left:8px;white-space:nowrap;font-weight:500}
 
 /* The marquee strip */
-.cells{grid-column:1 / -1;display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:10px 4px;list-style:none;margin:10px 0 0;padding:0}
+.cells{grid-column:1 / -1;display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:10px 4px;list-style:none;margin:10px 0 0;padding:0}
 .cell{display:flex;flex-direction:column;align-items:center;gap:5px;min-width:0;text-align:center;padding:10px 2px 8px;border-radius:14px}
 .cell.in{background:var(--good-bg)}
 .cell.pay{background:var(--rent-bg)}
@@ -165,10 +165,10 @@ footer{color:var(--muted);font-size:.8rem;display:flex;flex-direction:column;gap
 @media (min-width:640px){
   .row{grid-template-columns:84px minmax(0,1fr)}
   .poster{width:84px;height:126px;grid-row:1 / span 2;align-self:start}
-  .cells{grid-column:2;grid-template-columns:repeat(5,minmax(0,1fr));gap:10px 2px}
+  .cells{grid-column:2;grid-template-columns:repeat(6,minmax(0,1fr));gap:10px 2px}
 }
-@media (min-width:880px){
-  .cells{grid-template-columns:repeat(10,minmax(0,1fr));gap:6px 2px}
+@media (min-width:940px){
+  .cells{grid-template-columns:repeat(11,minmax(0,1fr));gap:6px 2px}
 }
 @media (min-width:900px){
   .long{display:inline}.short{display:none}
@@ -280,13 +280,14 @@ const SERVICES = [
   {id:'netflix',     label:'Netflix',     short:'Netflix',    mono:'N',                               ids:[8,1796], name:/^netflix/i},
   {id:'youtubetv',   label:'YouTube TV',  short:'YouTube TV', mono:'YT',                              ids:[],       name:/^youtube tv/i},
   {id:'apple',       label:'Apple TV+',   short:'Apple TV+',  mono:'TV+', sub:'via Apple One Premier', ids:[350,2],  name:/^apple tv/i, payLabel:'Apple TV'},
+  {id:'ytpremium',  label:'YouTube Premium', long:'YT Premium', short:'YT Premium', mono:'Y+',          ids:[188],  name:/^youtube( premium.*| free)?$/i, payLabel:'YouTube'},
   {id:'peacock',     label:'Peacock',     short:'Peacock',    mono:'Pk',                              ids:[],       name:/^peacock/i},
   {id:'paramount',   label:'Paramount+',  short:'Paramount+', mono:'P+',                              ids:[],       name:/^paramount/i},
   {id:'prime',       label:'Prime Video', short:'Prime',      mono:'Pv',                              ids:[9,2100,10], name:/^amazon (prime|video)/i, payLabel:'Amazon Video'},
   {id:'crunchyroll', label:'Crunchyroll', short:'Crunchy',    mono:'Cr',                              ids:[283],    name:/^crunchyroll/i}
 ];
 // Tile colours for the letter fallback. These only show while a TMDB logo is missing.
-const TILE = {disney:'#1B4DD6',hulu:'#14A265',hbo:'#6B35D9',netflix:'#D81F26',youtubetv:'#E0283C',apple:'#2B2B33',peacock:'#C99A00',paramount:'#1E6BE6',prime:'#0F79AF',crunchyroll:'#E8691A'};
+const TILE = {disney:'#1B4DD6',hulu:'#14A265',hbo:'#6B35D9',netflix:'#D81F26',youtubetv:'#E0283C',ytpremium:'#A3162F',apple:'#2B2B33',peacock:'#C99A00',paramount:'#1E6BE6',prime:'#0F79AF',crunchyroll:'#E8691A'};
 const REGIONS = {US:'United States',CA:'Canada',GB:'United Kingdom',AU:'Australia',DE:'Germany',FR:'France',ES:'Spain',IT:'Italy',MX:'Mexico',BR:'Brazil',JP:'Japan',IN:'India'};
 
 /* ---------- Storage (per browser) ---------- */
@@ -439,7 +440,7 @@ function rowHtml(r){
     const badge = on ? '<span class="badge '+c.state+'">'+(c.state === 'in' ? '&#10003;' : '$')+'</span>' : '';
     return '<li class="cell '+c.state+'" style="--i:'+(on ? lit++ : 0)+'" aria-label="'+esc(c.svc.label+': '+SPOKEN[c.state])+'">'
       +'<span class="lg" aria-hidden="true">'+logoHtml(c.svc,36)+badge+'</span>'
-      +'<span class="svc" aria-hidden="true"><span class="long">'+esc(c.svc.label)+'</span><span class="short">'+esc(c.svc.short)+'</span></span>'
+      +'<span class="svc" aria-hidden="true"><span class="long">'+esc(c.svc.long || c.svc.label)+'</span><span class="short">'+esc(c.svc.short)+'</span></span>'
       +'<span class="st" aria-hidden="true">'+(on ? STATE[c.state] : '')+'</span></li>';
   }).join('');
   return '<li class="row">'
@@ -539,7 +540,7 @@ const SAMPLE = [
   {h:{demo:1,media_type:'tv',    name:'Harbor Lights',       first_air_date:'2022-03-01', vote_average:8.1}, prov:{flatrate:[P(8,'Netflix'),P(15,'Hulu'),P(386,'Peacock')], buy:[P(2,'Apple TV')]}},
   {h:{demo:1,media_type:'movie', title:'The Long Quiet',     release_date:'2019-10-11',   vote_average:7.4}, prov:{flatrate:[P(337,'Disney Plus'),P(531,'Paramount Plus')]}},
   {h:{demo:1,media_type:'tv',    name:'Starlit Dojo',        first_air_date:'2023-04-07', vote_average:8.4}, prov:{flatrate:[P(283,'Crunchyroll')]}},
-  {h:{demo:1,media_type:'movie', title:'Paper Kingdoms',     release_date:'2016-06-24',   vote_average:6.9}, prov:{flatrate:[P(350,'Apple TV Plus')], buy:[P(10,'Amazon Video')]}},
+  {h:{demo:1,media_type:'movie', title:'Paper Kingdoms',     release_date:'2016-06-24',   vote_average:6.9}, prov:{flatrate:[P(350,'Apple TV Plus')], buy:[P(10,'Amazon Video'),P(192,'YouTube')]}},
   {h:{demo:1,media_type:'tv',    name:'Night Shift Kitchen', first_air_date:'2020-09-18', vote_average:7.7}, prov:{flatrate:[P(1899,'HBO Max'),P(2528,'YouTube TV')]}},
   {h:{demo:1,media_type:'movie', title:'Salt Road',          release_date:'2024-02-02',   vote_average:7.0}, prov:{}}
 ];

@@ -6,11 +6,11 @@ Search a movie or show and see which of **your** streaming services carry it.
 
 *Sample data with invented titles. Service logos appear after you add a TMDB key.*
 
-Which Service is a single web page. Search a title and each result shows ten services in a fixed row. Services that carry the title are **lit** with a ✓, services where you can only rent or buy it get a **$**, and the rest are dimmed. No server, no build step, no dependencies.
+Which Service is a single web page. Search a title and each result shows eleven services in a fixed row. Services that carry the title are **lit** with a ✓, services where you can only rent or buy it get a **$**, and the rest are dimmed. No server, no build step, no dependencies.
 
 ## Services
 
-Disney+, Hulu, HBO Max, Netflix, YouTube TV, Apple TV+, Peacock, Paramount+, Prime Video and Crunchyroll.
+Disney+, Hulu, HBO Max, Netflix, YouTube TV, YouTube Premium, Apple TV+, Peacock, Paramount+, Prime Video and Crunchyroll.
 
 The list lives in the `SERVICES` array near the top of the `<script>` in `index.html`. Each entry matches TMDB's provider by id and by name, which also catches channel and premium variants (for example "Peacock Premium" or "Paramount Plus Apple TV Channel"). To change the list, edit `SERVICES`, plus the matching entry in `TILE` (the colour of the letter tile shown when a logo is missing).
 
@@ -43,7 +43,7 @@ python3 -m http.server
 
 ## Using it
 
-- **Search tab:** type a title and press Enter. Each result has a one-line verdict and a row of the ten services.
+- **Search tab:** type a title and press Enter. Each result has a one-line verdict and a row of the eleven services.
 - **Your services:** the services list with logos. Use **Hide** or **Show** to collapse it. The choice is remembered.
 - **Settings tab:** the TMDB key, region, "Only show titles I can watch", and "Show my services".
 - **Light and dark:** the page follows your system setting.
