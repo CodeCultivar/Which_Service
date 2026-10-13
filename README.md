@@ -6,11 +6,13 @@ Search a movie or show and see which of **your** streaming services carry it.
 
 *Sample data with invented titles. Service logos appear after you add a TMDB key.*
 
-Which Service is a single web page. Search a title and each result shows eleven services in a fixed row. Services that carry the title are **lit** with a ✓, services where you can only rent or buy it get a **$**, and the rest are dimmed. No server, no build step, no dependencies.
+Which Service is a single web page. Search a title and each result shows the description, a row of eleven services, and the cast. Services that carry the title are **lit** with a ✓, a few get a **$** when you can only rent or buy the title there, and the rest are dimmed. Select a lit service to search for the title on that service, or select an actor to see their biography and filmography. No server, no build step, no dependencies.
 
 ## Services
 
 Disney+, Hulu, HBO Max, Netflix, YouTube TV, YouTube Premium, Apple TV+, Peacock, Paramount+, Prime Video and Crunchyroll.
+
+Prime Video and YouTube Premium light up only when the title is **included** with that subscription. Renting or buying on Amazon Video or YouTube does not light them. Apple TV+ also shows a **$** for titles you can rent or buy in the Apple TV store.
 
 The list lives in the `SERVICES` array near the top of the `<script>` in `index.html`. Each entry matches TMDB's provider by id and by name, which also catches channel and premium variants (for example "Peacock Premium" or "Paramount Plus Apple TV Channel"). To change the list, edit `SERVICES`, plus the matching entry in `TILE` (the colour of the letter tile shown when a logo is missing).
 
@@ -19,9 +21,13 @@ The list lives in the `SERVICES` array near the top of the `<script>` in `index.
 Availability comes from [TMDB](https://www.themoviedb.org/) watch-provider data, which is supplied by JustWatch. The app:
 
 1. Searches TMDB (`/search/multi`) for movies and series.
-2. Looks up each result's watch providers (`/{movie|tv}/{id}/watch/providers`) for your region.
+2. Reads each result's description from the search results, and looks up each result's watch providers (`/{movie|tv}/{id}/watch/providers`) for your region.
 3. Marks each of your services as included, rent or buy, or not available, and lists titles you can watch first.
-4. Fetches service logos from TMDB, and falls back to coloured letter tiles when a logo is not available.
+4. Loads the top cast for each result (`/{movie|tv}/{id}/credits`) after the results appear, so a slow cast never delays availability.
+5. Opens a person page on demand (`/person/{id}` and `/person/{id}/combined_credits`).
+6. Fetches service logos from TMDB, and falls back to coloured letter tiles when a logo is not available.
+
+**Links:** TMDB can say that a service carries a title, but it has no link to the title's own page inside the service. A lit service therefore opens **that service's search page for the title**, which is one tap from the title. Those addresses are in the `SEARCH` object in `index.html`. If a service changes its site, edit its line. "All watch options" opens TMDB's own watch page for the title.
 
 **Limits:** this reads public availability data. It cannot see inside your accounts, so it does not know your personal libraries or purchases. Data can lag behind reality, and a service that TMDB does not list (YouTube TV may be one) will always show as not available.
 
@@ -43,7 +49,9 @@ python3 -m http.server
 
 ## Using it
 
-- **Search tab:** type a title and press Enter. Each result has a one-line verdict and a row of the eleven services.
+- **Search tab:** type a title and press Enter. Each result has a description (select **More** for the full text), a row of the eleven services, and the top cast.
+- **Services row:** lit services are links that open the service's search for the title. Dimmed services are not links.
+- **Cast:** select a name to open their person page: photo, basic facts (born, birthplace, known for), biography, and a filmography you can filter to movies or TV. Select a credit to search where it streams. The browser Back button returns to your results.
 - **Your services:** the services list with logos. Use **Hide** or **Show** to collapse it. The choice is remembered.
 - **Settings tab:** the TMDB key, region, "Only show titles I can watch", and "Show my services".
 - **Light and dark:** the page follows your system setting.
