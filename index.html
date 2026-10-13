@@ -1,0 +1,622 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Which Service</title>
+<link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg%20xmlns='http://www.w3.org/2000/svg'%20viewBox='0%200%2064%2064'%3E%3Crect%20width='64'%20height='64'%20rx='14'%20fill='%23140B28'/%3E%3Crect%20x='10'%20y='10'%20width='12'%20height='12'%20rx='3.5'%20fill='%233A2F5C'/%3E%3Crect%20x='26'%20y='10'%20width='12'%20height='12'%20rx='3.5'%20fill='%23F5B942'/%3E%3Crect%20x='42'%20y='10'%20width='12'%20height='12'%20rx='3.5'%20fill='%233A2F5C'/%3E%3Crect%20x='10'%20y='26'%20width='12'%20height='12'%20rx='3.5'%20fill='%23FF7AC6'/%3E%3Crect%20x='26'%20y='26'%20width='12'%20height='12'%20rx='3.5'%20fill='%233A2F5C'/%3E%3Crect%20x='42'%20y='26'%20width='12'%20height='12'%20rx='3.5'%20fill='%233A2F5C'/%3E%3Crect%20x='10'%20y='42'%20width='12'%20height='12'%20rx='3.5'%20fill='%233A2F5C'/%3E%3Crect%20x='26'%20y='42'%20width='12'%20height='12'%20rx='3.5'%20fill='%233A2F5C'/%3E%3Crect%20x='42'%20y='42'%20width='12'%20height='12'%20rx='3.5'%20fill='%234FE3D6'/%3E%3C/svg%3E">
+<link rel="apple-touch-icon" href="assets/apple-touch-icon.png">
+<meta name="theme-color" content="#140B28">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,400..800&display=swap" rel="stylesheet">
+<style>
+/* Concept: a marquee. In every result, services that carry the title are lit and the rest are dimmed,
+   always in the same positions. Everything else stays quiet. */
+:root{
+  --bg:#EFE9FB; --surface:#FFFFFF; --ink:#1D1630; --muted:#655C78; --line:#DDD6E8;
+  --accent:#F2B33D; --accent-ink:#2A1D00; --link:#4B3FD0; --focus:#5B3DF5; --brand:#5B3DF5; --on-brand:#FFFFFF; --pink:#E0409B; --teal:#13A89E; --none-bg:#E3DDF2;
+  --good:#0F7B5C; --on-good:#FFFFFF; --good-bg:#D9F3EA;
+  --rent:#4B49C9; --on-rent:#FFFFFF; --rent-bg:#E4E3FB;
+  --danger:#B3261E; --glow:transparent;
+  --font:'Bricolage Grotesque',system-ui,-apple-system,'Segoe UI',sans-serif;
+  color-scheme:light;
+}
+@media (prefers-color-scheme:dark){
+  :root{
+    --bg:#140B28; --surface:#1F1636; --ink:#F1ECFA; --muted:#A99FC0; --line:#352C4B;
+    --accent:#F5B942; --accent-ink:#2A1D00; --link:#B7ABFF; --focus:#FFD27A; --brand:#B7ABFF; --on-brand:#1A1240; --pink:#FF7AC6; --teal:#4FE3D6; --none-bg:#241A3F;
+    --good:#5BE0B0; --on-good:#08261C; --good-bg:#123C30;
+    --rent:#A9A6FF; --on-rent:#14123F; --rent-bg:#2B2A5E;
+    --danger:#FF8A80; --glow:1;
+    color-scheme:dark;
+  }
+}
+*{box-sizing:border-box}
+html,body{margin:0}
+body{background:var(--bg);color:var(--ink);font:400 1rem/1.5 var(--font);padding-inline:16px;padding-block:20px 56px}
+.wrap{max-width:880px;margin-inline:auto;display:flex;flex-direction:column;gap:24px}
+.sr{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}
+button,input,select{font:inherit;color:inherit}
+:focus-visible{outline:3px solid var(--focus);outline-offset:2px}
+
+.top{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap}
+h1{margin:0;font:800 1.75rem/1 var(--font);letter-spacing:-.02em;display:flex;align-items:center;gap:14px}
+h1::before{content:"";width:9px;height:9px;border-radius:50%;background:var(--accent);box-shadow:15px 0 0 var(--pink),30px 0 0 var(--teal);margin-right:30px;flex:none}
+h2{margin:0;font:700 1.1rem/1.2 var(--font);letter-spacing:-.005em}
+
+.tabs{display:flex;gap:2px;padding:3px;background:var(--surface);border:1px solid var(--line);border-radius:999px}
+.tab{background:none;border:0;border-radius:999px;padding:8px 18px;cursor:pointer;color:var(--muted);font-weight:600;line-height:1}
+.tab:hover{color:var(--ink)}
+.tab[aria-selected="true"]{background:var(--brand);color:var(--on-brand)}
+
+.pane{display:flex;flex-direction:column;gap:24px}
+.pane[hidden]{display:none}
+
+select,.ghost{background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:8px 14px;cursor:pointer}
+.ghost{font-weight:600}
+.ghost:hover,select:hover{border-color:var(--muted)}
+
+.search{display:flex;gap:8px}
+.search input{flex:1;min-width:0;background:var(--surface);border:2px solid var(--line);border-radius:16px;padding:0 20px;height:60px;font-size:1.2rem;font-weight:500}
+.search input::placeholder{color:var(--muted);font-weight:400}
+.search input:focus-visible{border-color:var(--focus);outline:none}
+.primary{background:var(--accent);color:var(--accent-ink);border:0;border-radius:16px;padding:0 26px;font-weight:700;cursor:pointer}
+.primary:hover{filter:brightness(1.06)}
+
+.status{margin:-8px 0 0;color:var(--muted);font-size:.95rem}
+.status:empty{display:none}
+.status.err{color:var(--danger);background:var(--surface);border:1px solid var(--danger);border-radius:10px;padding:10px 14px;margin:0}
+.status.busy::before{content:"";display:inline-block;width:.8em;height:.8em;margin-right:.5em;border:2px solid var(--line);border-top-color:var(--accent);border-radius:50%;vertical-align:-.1em;animation:spin .8s linear infinite}
+@keyframes spin{to{transform:rotate(360deg)}}
+
+.mine{display:flex;flex-direction:column;gap:12px}
+.mine-head{display:flex;align-items:center;justify-content:space-between;gap:8px 16px}
+.mine-body{display:flex;flex-direction:column;gap:12px}
+.mine-body[hidden]{display:none}
+.svc-list{list-style:none;margin:0;padding:0;display:flex;flex-wrap:wrap;gap:8px}
+.svc-item{display:flex;align-items:center;gap:10px;background:var(--surface);border:1px solid var(--line);border-radius:14px;padding:6px 14px 6px 6px;min-width:0}
+.svc-text{display:flex;flex-direction:column;min-width:0}
+.svc-name{font-weight:600;line-height:1.2;overflow-wrap:anywhere}
+.svc-sub{font-size:.75rem;line-height:1.2;color:var(--muted);overflow-wrap:anywhere}
+.legend{display:flex;flex-wrap:wrap;gap:6px 20px;margin:0;padding:0;list-style:none;font-size:.85rem;color:var(--muted)}
+.legend li{display:flex;align-items:center;gap:8px}
+.legend .badge{position:static}
+.dim{width:18px;height:18px;border-radius:6px;background:var(--line);opacity:.8}
+
+/* Logos come from TMDB. A letter tile stands in until one is available. */
+.lg{position:relative;display:block;line-height:0}
+.logo{width:36px;height:36px;border-radius:10px;object-fit:cover;display:block;background:var(--line)}
+.logo.sz32{width:32px;height:32px;border-radius:9px}
+.logo.mono{display:grid;place-items:center;color:#fff;font-weight:800;font-size:.85rem;line-height:1}
+.logo[hidden]{display:none}
+
+.badge{position:absolute;right:-6px;top:-6px;min-width:18px;height:18px;padding:0 3px;border-radius:9px;display:grid;place-items:center;font-size:.7rem;font-weight:800;line-height:1;box-shadow:0 0 0 2px var(--bg)}
+.badge.in{background:var(--good);color:var(--on-good)}
+.badge.pay{background:var(--rent);color:var(--on-rent)}
+
+.banner{background:var(--rent-bg);color:var(--rent);border-radius:12px;padding:10px 14px;font-size:.9rem;display:flex;flex-wrap:wrap;gap:4px 12px;align-items:baseline}
+.banner[hidden]{display:none}
+.linkbtn{background:none;border:0;color:var(--link);text-decoration:underline;cursor:pointer;padding:0;font-weight:600}
+.banner .linkbtn{color:inherit}
+
+.results{list-style:none;margin:0;padding:0;display:flex;flex-direction:column}
+.row{display:grid;grid-template-columns:64px minmax(0,1fr);gap:6px 16px;padding:36px 0 32px;border-top:2px solid color-mix(in srgb,var(--ink) 16%,transparent)}
+.row:first-child{border-top:0;padding-top:8px}
+.poster{grid-row:1;width:64px;height:96px;border-radius:8px;background:var(--line);overflow:hidden;display:grid;place-items:center;font-weight:800;font-size:1.8rem;color:var(--muted)}
+.poster img{width:100%;height:100%;object-fit:cover;display:block}
+.poster.noimg{background:hsl(var(--h) 65% 84%);color:hsl(var(--h) 55% 28%)}
+@media (prefers-color-scheme:dark){.poster.noimg{background:hsl(var(--h) 40% 24%);color:hsl(var(--h) 85% 82%)}}
+.info{min-width:0;display:flex;flex-direction:column;gap:2px}
+.info h3{margin:0;font:700 1.3rem/1.2 var(--font);letter-spacing:-.01em;overflow-wrap:anywhere}
+.meta{margin:0;display:flex;flex-wrap:wrap;gap:0 12px;font-size:.9rem;color:var(--muted)}
+.kind{font-weight:600}
+.verdict{margin:6px 0 0;font-size:1rem;align-self:flex-start;padding:6px 12px;border-radius:10px}
+.verdict.good{color:var(--good);background:var(--good-bg);font-weight:600}
+.verdict.warn{color:var(--rent);background:var(--rent-bg);font-weight:600}
+.verdict.none{color:var(--muted);background:var(--none-bg)}
+.verdict a{color:var(--link);margin-left:8px;white-space:nowrap;font-weight:500}
+
+/* The marquee strip */
+.cells{grid-column:1 / -1;display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:10px 4px;list-style:none;margin:10px 0 0;padding:0}
+.cell{display:flex;flex-direction:column;align-items:center;gap:5px;min-width:0;text-align:center;padding:10px 2px 8px;border-radius:14px}
+.cell.in{background:var(--good-bg)}
+.cell.pay{background:var(--rent-bg)}
+.cell .logo{width:44px;height:44px;border-radius:12px}
+.cell.none .lg,.cell.unk .lg{opacity:.45;filter:grayscale(.85)}
+.cell.in .logo{box-shadow:0 0 0 2px var(--good)}
+.cell.pay .logo{box-shadow:0 0 0 2px var(--rent)}
+@media (prefers-color-scheme:dark){
+  .cell.in .logo{box-shadow:0 0 0 2px var(--good),0 0 18px color-mix(in srgb,var(--good) 50%,transparent)}
+  .cell.pay .logo{box-shadow:0 0 0 2px var(--rent),0 0 18px color-mix(in srgb,var(--rent) 45%,transparent)}
+}
+.cell .svc{font-size:.72rem;line-height:1.2;font-weight:600;color:var(--muted);max-width:100%;overflow-wrap:break-word}
+.cell.in .svc,.cell.pay .svc{color:var(--ink)}
+.cell .badge{box-shadow:0 0 0 2px var(--surface)}
+.cell .st{font-size:.68rem;line-height:1.2;min-height:1.2em;font-weight:600}
+.cell.in .st{color:var(--good)}
+.cell.pay .st{color:var(--rent)}
+.long{display:none}
+
+@keyframes lightUp{from{opacity:.45;filter:grayscale(.85)}to{opacity:1;filter:none}}
+.row:nth-child(-n+3) .cell.in .lg,.row:nth-child(-n+3) .cell.pay .lg{animation:lightUp .55s ease-out both;animation-delay:calc(var(--i,0)*70ms)}
+
+.card{background:var(--surface);border:1px solid var(--line);border-radius:18px;padding:22px;display:flex;flex-direction:column;gap:14px}
+.card p{margin:0;color:var(--muted)}
+.card ol{margin:0;padding-left:1.2em;color:var(--muted)}
+.card a{color:var(--link)}
+.keyrow{display:flex;flex-wrap:wrap;gap:8px}
+.keyrow input{flex:1 1 220px;min-width:0;background:var(--bg);border:1px solid var(--line);border-radius:12px;padding:12px 14px}
+.keyrow .primary{padding:12px 20px;border-radius:12px}
+.keymsg{margin:0;font-size:.95rem}
+.keymsg:empty{display:none}
+.card .keymsg.err{color:var(--danger)}
+.card .keymsg.ok{color:var(--good);font-weight:600}
+
+.opt{display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:8px 16px;padding-top:14px;border-top:1px solid var(--line)}
+.opt:first-of-type{padding-top:0;border-top:0}
+.opt-text{display:flex;flex-direction:column;min-width:0;flex:1 1 240px}
+.opt-name{font-weight:600}
+.hint{color:var(--muted);font-size:.9rem}
+.opt input[type="checkbox"]{width:22px;height:22px;accent-color:var(--brand);cursor:pointer;flex:none}
+
+footer{color:var(--muted);font-size:.8rem;display:flex;flex-direction:column;gap:4px}
+
+@media (min-width:640px){
+  .row{grid-template-columns:84px minmax(0,1fr)}
+  .poster{width:84px;height:126px;grid-row:1 / span 2;align-self:start}
+  .cells{grid-column:2;grid-template-columns:repeat(9,minmax(0,1fr));gap:6px 2px}
+}
+@media (min-width:900px){
+  .long{display:inline}.short{display:none}
+}
+@media (max-width:639px){
+  .cell{padding-inline:0}
+  .cell .svc{font-size:.6rem;letter-spacing:-.01em}
+  .cell .st{font-size:.62rem}
+}
+@media (max-width:560px){
+  .svc-list{display:grid;grid-template-columns:repeat(2,minmax(0,1fr))}
+  .svc-item{padding:6px 8px 6px 6px}
+  .search input{height:54px;font-size:1.05rem;padding-inline:16px}
+  .primary{padding:0 18px}
+}
+@media (prefers-reduced-motion:reduce){*{transition:none!important;animation:none!important}}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header class="top">
+    <h1>Which Service</h1>
+    <div class="tabs" id="tabs" role="tablist" aria-label="Sections">
+    <button type="button" class="tab" role="tab" id="tabSearch" aria-selected="true" aria-controls="paneSearch">Search</button>
+    <button type="button" class="tab" role="tab" id="tabSettings" aria-selected="false" aria-controls="paneSettings" tabindex="-1">Settings</button>
+  </div>
+  </header>
+
+  <div class="pane" id="paneSearch" role="tabpanel" aria-labelledby="tabSearch">
+    <form class="search" id="searchForm" role="search">
+      <label class="sr" for="q">Search movies and shows</label>
+      <input id="q" type="search" placeholder="Search a movie or show" autocomplete="off" enterkeyhint="search">
+      <button type="submit" class="primary">Search</button>
+    </form>
+    <p class="status" id="status" role="status" aria-live="polite"></p>
+
+    <section class="mine" aria-labelledby="mineLabel">
+      <div class="mine-head">
+        <h2 id="mineLabel">Your services</h2>
+        <button type="button" class="ghost" id="svcToggle" aria-expanded="true" aria-controls="svcBody">Hide</button>
+      </div>
+      <div class="mine-body" id="svcBody">
+        <ul class="svc-list" id="svcList"></ul>
+        <ul class="legend" aria-label="Legend">
+          <li><span class="badge in" aria-hidden="true">&#10003;</span> Included</li>
+          <li><span class="badge pay" aria-hidden="true">$</span> Rent or buy</li>
+          <li><span class="dim" aria-hidden="true"></span> Not available</li>
+        </ul>
+      </div>
+    </section>
+
+    <div class="banner" id="banner" hidden>
+      <span>Sample layout. These titles and their availability are made up so you can see how results look.</span>
+      <button type="button" class="linkbtn" id="bannerKey">Add your TMDB key in Settings</button>
+    </div>
+    <ol class="results" id="results"></ol>
+  </div>
+
+  <div class="pane" id="paneSettings" role="tabpanel" aria-labelledby="tabSettings" hidden>
+    <section class="card" aria-labelledby="keyHead">
+      <h2 id="keyHead">TMDB key</h2>
+      <p>Availability data comes from TMDB, which is free for personal use. Your key stays in this browser and is only sent to TMDB.</p>
+      <ol>
+        <li>Make a free account at <a href="https://www.themoviedb.org/signup" target="_blank" rel="noopener">themoviedb.org</a>.</li>
+        <li>Open Settings, then API, and request a developer key.</li>
+        <li>Paste either the API Key or the Read Access Token below.</li>
+      </ol>
+      <form class="keyrow" id="keyForm">
+        <label class="sr" for="keyInput">TMDB API key or read access token</label>
+        <input id="keyInput" type="text" autocomplete="off" autocapitalize="off" spellcheck="false" placeholder="Paste key">
+        <button type="submit" class="primary" id="saveKey">Save and test key</button>
+      </form>
+      <p class="keymsg" id="keyMsg" role="status" aria-live="polite"></p>
+      <p><button type="button" class="linkbtn" id="useSample">Use sample data</button> <span id="removeWrap" hidden> · <button type="button" class="linkbtn" id="removeKey">Remove saved key</button></span></p>
+    </section>
+
+    <section class="card" aria-labelledby="optHead">
+      <h2 id="optHead">Options</h2>
+      <div class="opt">
+        <div class="opt-text"><label class="opt-name" for="region">Region</label><span class="hint">Which country's availability to check.</span></div>
+        <select id="region"></select>
+      </div>
+      <div class="opt">
+        <div class="opt-text"><label class="opt-name" for="onlyMine">Only show titles I can watch</label><span class="hint">Hides results that aren't on any of your services.</span></div>
+        <input type="checkbox" id="onlyMine">
+      </div>
+      <div class="opt">
+        <div class="opt-text"><label class="opt-name" for="showSvcs">Show my services</label><span class="hint">Shows the services list on the Search tab. You can also use its Hide button.</span></div>
+        <input type="checkbox" id="showSvcs">
+      </div>
+    </section>
+  </div>
+
+  <footer>
+    <span>Streaming availability data from JustWatch, provided through TMDB. Service logos from TMDB.</span>
+    <span>This product uses the TMDB API but is not endorsed or certified by TMDB.</span>
+  </footer>
+</div>
+
+<script>
+'use strict';
+
+/* ---------- Your services ---------- */
+// Each service matches TMDB's provider name, which also catches Amazon/Apple channel and Premium variants.
+const SERVICES = [
+  {id:'disney',      label:'Disney+',     short:'Disney+',    mono:'D+',  sub:'Disney+ bundle',        ids:[337],    name:/^disney/i},
+  {id:'hulu',        label:'Hulu',        short:'Hulu',       mono:'Hu',  sub:'Disney+ bundle',        ids:[15],     name:/^hulu/i},
+  {id:'hbo',         label:'HBO Max',     short:'HBO Max',    mono:'HBO', sub:'Disney+ bundle',        ids:[],       name:/^(hbo|max)\b/i},
+  {id:'netflix',     label:'Netflix',     short:'Netflix',    mono:'N',                               ids:[8,1796], name:/^netflix/i},
+  {id:'youtubetv',   label:'YouTube TV',  short:'YouTube TV', mono:'YT',                              ids:[],       name:/^youtube tv/i},
+  {id:'apple',       label:'Apple TV+',   short:'Apple TV+',  mono:'TV+', sub:'via Apple One Premier', ids:[350,2],  name:/^apple tv/i, payLabel:'Apple TV'},
+  {id:'peacock',     label:'Peacock',     short:'Peacock',    mono:'Pk',                              ids:[],       name:/^peacock/i},
+  {id:'paramount',   label:'Paramount+',  short:'Paramount+', mono:'P+',                              ids:[],       name:/^paramount/i},
+  {id:'crunchyroll', label:'Crunchyroll', short:'Crunchy',    mono:'Cr',                              ids:[283],    name:/^crunchyroll/i}
+];
+// Tile colours for the letter fallback. These only show while a TMDB logo is missing.
+const TILE = {disney:'#1B4DD6',hulu:'#14A265',hbo:'#6B35D9',netflix:'#D81F26',youtubetv:'#E0283C',apple:'#2B2B33',peacock:'#C99A00',paramount:'#1E6BE6',crunchyroll:'#E8691A'};
+const REGIONS = {US:'United States',CA:'Canada',GB:'United Kingdom',AU:'Australia',DE:'Germany',FR:'France',ES:'Spain',IT:'Italy',MX:'Mexico',BR:'Brazil',JP:'Japan',IN:'India'};
+
+/* ---------- Storage (per browser) ---------- */
+const store = {
+  get(k,d){ try{ const v=localStorage.getItem('ws.'+k); return v===null?d:JSON.parse(v); }catch(e){ return d; } },
+  set(k,v){ try{ localStorage.setItem('ws.'+k,JSON.stringify(v)); }catch(e){} },
+  del(k){ try{ localStorage.removeItem('ws.'+k); }catch(e){} }
+};
+// Earlier versions saved a service selection. The list is fixed now, so clear it.
+['mine','custom','addedV2'].forEach(k => store.del(k));
+
+let KEY = store.get('key','');
+let REGION = store.get('region','US');
+let ONLY_MINE = store.get('onlyMine', false);
+let SHOW_SVCS = store.get('showSvcs', true);
+let LOGOS = store.get('logos', {});      // service id -> TMDB logo path
+let DEMO = !KEY;
+let rows = [];            // [{h, prov}] where prov: object | null (no data) | undefined (failed)
+let seq = 0;
+let pendingQ = '';        // a search typed before a key was saved
+const provCache = new Map();
+const logoTried = new Set();
+
+const $ = id => document.getElementById(id);
+const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const list = a => a.length<2 ? a.join('') : a.slice(0,-1).join(', ')+' and '+a[a.length-1];
+
+/* ---------- TMDB ---------- */
+async function tmdb(path, params={}){
+  const url = new URL('https://api.themoviedb.org/3'+path);
+  const headers = {accept:'application/json'};
+  if (KEY.startsWith('eyJ')) headers.Authorization = 'Bearer '+KEY;
+  else url.searchParams.set('api_key', KEY);
+  for (const [k,v] of Object.entries(params)) url.searchParams.set(k,v);
+  const res = await fetch(url, {headers});
+  if (!res.ok){ const e = new Error('TMDB '+res.status); e.status = res.status; throw e; }
+  return res.json();
+}
+
+async function providersFor(h){
+  const ck = h.media_type+':'+h.id+':'+REGION;
+  if (provCache.has(ck)) return provCache.get(ck);
+  const data = await tmdb('/'+h.media_type+'/'+h.id+'/watch/providers');
+  const out = (data.results && data.results[REGION]) || null;
+  harvestLogos(out);
+  provCache.set(ck, out);
+  return out;
+}
+
+/* ---------- Logos ---------- */
+// A logo is picked only from a provider that is the service itself, never an Amazon or Apple channel.
+const isChannel = p => /channel/i.test(p.provider_name || '');
+
+function harvestLogos(prov){
+  if (!prov) return;
+  let changed = false;
+  for (const p of [].concat(prov.flatrate||[], prov.free||[], prov.ads||[], prov.rent||[], prov.buy||[])){
+    if (!p.logo_path || isChannel(p)) continue;
+    for (const s of SERVICES) if (!LOGOS[s.id] && matches(p, s)){ LOGOS[s.id] = p.logo_path; changed = true; }
+  }
+  if (changed) store.set('logos', LOGOS);
+}
+
+// Fetches TMDB's provider list once per region for any service still missing a logo.
+async function loadLogos(){
+  if (DEMO || !KEY) return;
+  const missing = SERVICES.filter(s => !LOGOS[s.id]);
+  if (!missing.length || logoTried.has(REGION)) return;
+  logoTried.add(REGION);
+  try{
+    const [m, t] = await Promise.all([
+      tmdb('/watch/providers/movie', {watch_region:REGION}),
+      tmdb('/watch/providers/tv', {watch_region:REGION})
+    ]);
+    const all = [].concat(m.results || [], t.results || []).filter(p => p.logo_path);
+    let changed = false;
+    for (const s of missing){
+      let cands = all.filter(p => matches(p, s));
+      const own = cands.filter(p => !isChannel(p));
+      if (own.length) cands = own;
+      if (!cands.length) continue;
+      const rank = p => { const i = (s.ids||[]).indexOf(p.provider_id); return i < 0 ? 99 : i; };
+      cands.sort((a,b) => (rank(a) - rank(b)) || (a.provider_name.length - b.provider_name.length));
+      LOGOS[s.id] = cands[0].logo_path; changed = true;
+    }
+    if (changed){ store.set('logos', LOGOS); renderServices(); if (rows.length) render(); }
+  }catch(e){ /* logos are cosmetic, so the letter tiles stay */ }
+}
+
+function logoHtml(svc, size){
+  const mono = '<span class="logo mono sz'+size+'"'+(LOGOS[svc.id] ? ' hidden' : '')+' style="background:'+(TILE[svc.id]||'#6B6580')+'">'+esc(svc.mono)+'</span>';
+  if (!LOGOS[svc.id]) return mono;
+  return '<img class="logo sz'+size+'" src="https://image.tmdb.org/t/p/w92'+esc(LOGOS[svc.id])+'" alt="" loading="lazy" onerror="this.hidden=true;this.nextElementSibling.hidden=false">'+mono;
+}
+
+function renderServices(){
+  $('svcList').innerHTML = SERVICES.map(s =>
+    '<li class="svc-item"><span class="lg" aria-hidden="true">'+logoHtml(s,32)+'</span>'
+    +'<span class="svc-text"><span class="svc-name">'+esc(s.label)+'</span>'+(s.sub ? '<span class="svc-sub">'+esc(s.sub)+'</span>' : '')+'</span></li>').join('');
+}
+
+/* ---------- Availability logic ---------- */
+function matches(p, svc){
+  return (svc.ids || []).includes(p.provider_id) || svc.name.test(p.provider_name || '');
+}
+const incOf = prov => [].concat(prov.flatrate||[], prov.free||[], prov.ads||[]);
+const payOf = prov => [].concat(prov.rent||[], prov.buy||[]);
+
+function cellState(svc, prov){
+  if (prov === undefined) return 'unk';
+  if (prov === null) return 'none';
+  if (incOf(prov).some(p => matches(p, svc))) return 'in';
+  if (payOf(prov).some(p => matches(p, svc))) return 'pay';
+  return 'none';
+}
+
+function verdictFor(cells, prov){
+  if (prov === undefined) return {tone:'none', rank:3, text:'Could not load availability for this title.'};
+  const inc = cells.filter(c => c.state === 'in').map(c => c.svc.label);
+  const pay = cells.filter(c => c.state === 'pay').map(c => c.svc.payLabel || c.svc.label);
+  if (inc.length) return {tone:'good', rank:0, text:'Included on '+list(inc)+(pay.length ? '. Rent or buy on '+list(pay) : '')};
+  if (pay.length) return {tone:'warn', rank:1, text:'Rent or buy on '+list(pay)};
+  return {tone:'none', rank:3, text: prov === null
+    ? 'No streaming data for this title in '+REGIONS[REGION]+'.'
+    : 'Not on any of your services in '+REGIONS[REGION]+'.'};
+}
+
+/* ---------- Rendering ---------- */
+const STATE = {in:'Included', pay:'Rent or buy', none:'', unk:''};
+const SPOKEN = {in:'included with subscription', pay:'available to rent or buy', none:'not available', unk:'availability unknown'};
+
+const hue = t => { let n = 0; for (const c of String(t)) n = (n*31 + c.charCodeAt(0)) % 360; return n; };
+
+function rowHtml(r){
+  const h = r.h;
+  const title = h.title || h.name || 'Untitled';
+  const date = h.release_date || h.first_air_date || '';
+  const year = date ? date.slice(0,4) : '';
+  const kind = h.media_type === 'tv' ? 'Series' : 'Movie';
+  const cells = SERVICES.map(svc => ({svc, state:cellState(svc, r.prov)}));
+  const v = verdictFor(cells, r.prov);
+  r.rank = v.rank;
+  const link = (r.prov && r.prov.link && !h.demo) ? ' <a href="'+esc(r.prov.link)+'" target="_blank" rel="noopener">Watch options &#8599;</a>' : '';
+  const poster = h.poster_path
+    ? '<img src="https://image.tmdb.org/t/p/w154'+esc(h.poster_path)+'" alt="" width="56" height="84" loading="lazy">'
+    : esc(title.charAt(0).toUpperCase());
+  let lit = 0;
+  const cellHtml = cells.map(c => {
+    const on = c.state === 'in' || c.state === 'pay';
+    const badge = on ? '<span class="badge '+c.state+'">'+(c.state === 'in' ? '&#10003;' : '$')+'</span>' : '';
+    return '<li class="cell '+c.state+'" style="--i:'+(on ? lit++ : 0)+'" aria-label="'+esc(c.svc.label+': '+SPOKEN[c.state])+'">'
+      +'<span class="lg" aria-hidden="true">'+logoHtml(c.svc,36)+badge+'</span>'
+      +'<span class="svc" aria-hidden="true"><span class="long">'+esc(c.svc.label)+'</span><span class="short">'+esc(c.svc.short)+'</span></span>'
+      +'<span class="st" aria-hidden="true">'+(on ? STATE[c.state] : '')+'</span></li>';
+  }).join('');
+  return '<li class="row">'
+    +'<div class="poster'+(h.poster_path ? '' : ' noimg')+'" style="--h:'+hue(title)+'">'+poster+'</div>'
+    +'<div class="info"><h3>'+esc(title)+'</h3>'
+    +'<p class="meta"><span class="kind">'+kind+'</span>'+(year?'<span>'+esc(year)+'</span>':'')+(h.vote_average?'<span>&#9733; '+Number(h.vote_average).toFixed(1)+'</span>':'')+'</p>'
+    +'<p class="verdict '+v.tone+'">'+esc(v.text)+link+'</p></div>'
+    +'<ul class="cells">'+cellHtml+'</ul></li>';
+}
+
+function render(){
+  const out = $('results');
+  // Titles you can watch first, then the rest in search order.
+  const html = rows.map((r,i) => ({r, i, html:rowHtml(r)}));
+  let shown = html.slice().sort((a,b) => (a.r.rank - b.r.rank) || (a.i - b.i));
+  if (ONLY_MINE) shown = shown.filter(x => x.r.rank < 2);
+  out.innerHTML = shown.map(x => x.html).join('');
+  if (!rows.length) return;
+  if (DEMO) setStatus('Sample data. Add a TMDB key in Settings to search real titles.');
+  else if (ONLY_MINE && !shown.length) setStatus(rows.length+' titles matched, none on your services. Turn off “Only show titles I can watch” in Settings to see them.');
+  else setStatus(shown.length+(ONLY_MINE?' of '+rows.length:'')+' titles, availability for '+REGIONS[REGION]+'.');
+}
+
+function setStatus(t, mode){
+  const s = $('status');
+  s.textContent = t;
+  s.classList.toggle('err', mode === true || mode === 'err');
+  s.classList.toggle('busy', mode === 'busy');
+}
+function keyMsg(t, kind){ const m = $('keyMsg'); m.textContent = t; m.className = 'keymsg' + (kind ? ' '+kind : ''); }
+
+// Says where the page is running, because a preview frame blocks outside requests.
+function envHint(){
+  try{ if (window.self !== window.top) return 'This page is running inside a preview frame, which blocks outside requests. Open the saved file directly in a Chrome tab.'; }catch(e){}
+  if (location.protocol === 'file:') return 'If this keeps happening, run "python3 -m http.server" in the folder and open http://localhost:8000 instead.';
+  return 'Check your connection, and check whether an ad blocker is blocking api.themoviedb.org.';
+}
+
+function showError(e){
+  rows = []; $('results').innerHTML = '';
+  if (e && (e.status === 401 || e.status === 403)) setStatus('TMDB rejected the key. Open Settings and paste it again.', true);
+  else if (e && e.status === 429) setStatus('TMDB asked to slow down. Wait a few seconds and search again.', true);
+  else if (e && e.status) setStatus('TMDB returned an error ('+e.status+'). Try again in a moment.', true);
+  else setStatus('Could not reach TMDB. '+envHint(), true);
+}
+
+/* ---------- Tabs ---------- */
+function showTab(name){
+  const settings = name === 'settings';
+  $('paneSearch').hidden = settings;
+  $('paneSettings').hidden = !settings;
+  $('tabSearch').setAttribute('aria-selected', String(!settings));
+  $('tabSettings').setAttribute('aria-selected', String(settings));
+  $('tabSearch').tabIndex = settings ? -1 : 0;
+  $('tabSettings').tabIndex = settings ? 0 : -1;
+}
+$('tabSearch').addEventListener('click', () => showTab('search'));
+$('tabSettings').addEventListener('click', () => showTab('settings'));
+$('tabs').addEventListener('keydown', e => {
+  if (e.key !== 'ArrowLeft' && e.key !== 'ArrowRight') return;
+  e.preventDefault();
+  const toSettings = $('paneSettings').hidden;
+  showTab(toSettings ? 'settings' : 'search');
+  (toSettings ? $('tabSettings') : $('tabSearch')).focus();
+});
+
+/* ---------- Search ---------- */
+async function runSearch(q){
+  q = q.trim();
+  if (!q) return;
+  if (DEMO){
+    pendingQ = q;
+    showTab('settings');
+    if ($('keyInput').value.trim()){ $('keyForm').requestSubmit(); return; }
+    keyMsg('Paste your TMDB key here to search real titles.', 'err');
+    setStatus('Searching real titles needs a saved TMDB key. Add it in Settings.', true);
+    $('keyInput').focus();
+    return;
+  }
+  const id = ++seq;
+  setStatus('Searching…', 'busy'); $('results').innerHTML = ''; rows = [];
+  try{
+    const s = await tmdb('/search/multi', {query:q, include_adult:'false'});
+    const hits = (s.results||[]).filter(r => r.media_type === 'movie' || r.media_type === 'tv').slice(0,12);
+    if (id !== seq) return;
+    if (!hits.length){ setStatus('No movies or shows matched “'+q+'”.'); return; }
+    setStatus('Checking where '+hits.length+' titles stream in '+REGIONS[REGION]+'…', 'busy');
+    const got = await Promise.all(hits.map(async h => ({h, prov: await providersFor(h).catch(e => { if (e.status === 401) throw e; return undefined; })})));
+    if (id !== seq) return;
+    rows = got; render(); renderServices();
+  }catch(e){ if (id === seq) showError(e); }
+}
+
+/* ---------- Sample data (invented titles) ---------- */
+const P = (id,name) => ({provider_id:id, provider_name:name});
+const SAMPLE = [
+  {h:{demo:1,media_type:'tv',    name:'Harbor Lights',       first_air_date:'2022-03-01', vote_average:8.1}, prov:{flatrate:[P(8,'Netflix'),P(15,'Hulu'),P(386,'Peacock')], buy:[P(2,'Apple TV')]}},
+  {h:{demo:1,media_type:'movie', title:'The Long Quiet',     release_date:'2019-10-11',   vote_average:7.4}, prov:{flatrate:[P(337,'Disney Plus'),P(531,'Paramount Plus')]}},
+  {h:{demo:1,media_type:'tv',    name:'Starlit Dojo',        first_air_date:'2023-04-07', vote_average:8.4}, prov:{flatrate:[P(283,'Crunchyroll')]}},
+  {h:{demo:1,media_type:'movie', title:'Paper Kingdoms',     release_date:'2016-06-24',   vote_average:6.9}, prov:{flatrate:[P(350,'Apple TV Plus')]}},
+  {h:{demo:1,media_type:'tv',    name:'Night Shift Kitchen', first_air_date:'2020-09-18', vote_average:7.7}, prov:{flatrate:[P(1899,'HBO Max'),P(2528,'YouTube TV')]}},
+  {h:{demo:1,media_type:'movie', title:'Salt Road',          release_date:'2024-02-02',   vote_average:7.0}, prov:{}}
+];
+
+/* ---------- Services area: hide and show ---------- */
+function setSvcs(show, save){
+  SHOW_SVCS = show;
+  $('svcBody').hidden = !show;
+  $('svcToggle').textContent = show ? 'Hide' : 'Show';
+  $('svcToggle').setAttribute('aria-expanded', String(show));
+  $('showSvcs').checked = show;
+  if (save) store.set('showSvcs', show);
+}
+$('svcToggle').addEventListener('click', () => setSvcs(!SHOW_SVCS, true));
+$('showSvcs').addEventListener('change', e => setSvcs(e.target.checked, true));
+
+/* ---------- Settings ---------- */
+$('onlyMine').checked = ONLY_MINE;
+$('onlyMine').addEventListener('change', e => { ONLY_MINE = e.target.checked; store.set('onlyMine', ONLY_MINE); if (rows.length) render(); });
+
+$('region').innerHTML = Object.entries(REGIONS).map(([c,n]) => '<option value="'+c+'">'+esc(n)+'</option>').join('');
+$('region').value = REGION;
+$('region').addEventListener('change', e => {
+  REGION = e.target.value; store.set('region', REGION);
+  loadLogos();
+  if (!DEMO && $('q').value.trim()) runSearch($('q').value);
+  else if (rows.length) render();
+});
+
+$('searchForm').addEventListener('submit', e => { e.preventDefault(); runSearch($('q').value); });
+
+function refreshKeyUi(){
+  $('removeWrap').hidden = !KEY;
+  $('keyInput').placeholder = KEY ? 'A key is saved on this device. Paste a new one to replace it.' : 'Paste key';
+}
+
+function enterSample(){
+  DEMO = true; rows = SAMPLE.map(r => ({h:r.h, prov:r.prov})); $('banner').hidden = false; render();
+}
+function leaveSample(){ DEMO = false; rows = []; $('results').innerHTML = ''; $('banner').hidden = true; }
+
+$('bannerKey').addEventListener('click', () => { showTab('settings'); $('keyInput').focus(); });
+
+// Saving a key also tests it against TMDB, so a bad key or a blocked network shows up here.
+$('keyForm').addEventListener('submit', async e => {
+  e.preventDefault();
+  const v = $('keyInput').value.trim();
+  if (v.length < 20){ keyMsg('That looks too short. Copy the whole API Key (32 characters) or the API Read Access Token.', 'err'); return; }
+  const prev = KEY;
+  KEY = v;
+  keyMsg('Testing key…');
+  try{
+    await tmdb('/configuration');
+  }catch(err){
+    KEY = prev;
+    if (err.status === 401 || err.status === 403) keyMsg('TMDB rejected that key. Make sure you copied the API Key or the API Read Access Token from your TMDB API settings.', 'err');
+    else if (err.status) keyMsg('TMDB returned error '+err.status+'. Try again in a moment.', 'err');
+    else keyMsg('Could not reach TMDB. '+envHint(), 'err');
+    return;
+  }
+  store.set('key', KEY); provCache.clear(); $('keyInput').value = '';
+  leaveSample();
+  loadLogos();
+  refreshKeyUi();
+  keyMsg('Key works and is saved on this device.', 'ok');
+  setStatus('');
+  const q = pendingQ; pendingQ = '';
+  if (q){ showTab('search'); $('q').value = q; runSearch(q); }
+  else setTimeout(() => { showTab('search'); $('q').focus(); }, 1200);
+});
+$('removeKey').addEventListener('click', () => {
+  KEY = ''; store.del('key'); provCache.clear(); enterSample(); refreshKeyUi(); keyMsg('Key removed.', 'ok');
+});
+$('useSample').addEventListener('click', () => { enterSample(); showTab('search'); });
+
+/* ---------- Boot ---------- */
+setSvcs(SHOW_SVCS, false);
+renderServices();
+refreshKeyUi();
+if (DEMO) enterSample();
+else { setStatus('Search for a title to see where it streams in '+REGIONS[REGION]+'.'); loadLogos(); }
+</script>
+</body>
+</html>
