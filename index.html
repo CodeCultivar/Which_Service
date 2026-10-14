@@ -43,6 +43,8 @@ button,input,select{font:inherit;color:inherit}
 :focus-visible{outline:3px solid var(--focus);outline-offset:2px}
 
 .top{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap}
+h1 .home{color:inherit;text-decoration:none;border-radius:6px}
+h1 .home:focus-visible{outline:3px solid var(--accent);outline-offset:4px}
 h1{margin:0;font:800 1.75rem/1 var(--font);letter-spacing:-.02em;display:flex;align-items:center;gap:14px}
 h1::before{content:"";width:9px;height:9px;border-radius:50%;background:var(--accent);box-shadow:15px 0 0 var(--pink),30px 0 0 var(--teal);margin-right:30px;flex:none}
 h2{margin:0;font:700 1.1rem/1.2 var(--font);letter-spacing:-.005em}
@@ -235,7 +237,7 @@ footer{color:var(--muted);font-size:.8rem;display:flex;flex-direction:column;gap
 <body>
 <div class="wrap">
   <header class="top">
-    <h1>Which Service</h1>
+    <h1><a href="./" id="home" class="home" title="Back to the start">Which Service</a></h1>
     <div class="tabs" id="tabs" role="tablist" aria-label="Sections">
     <button type="button" class="tab" role="tab" id="tabSearch" aria-selected="true" aria-controls="paneSearch">Search</button>
     <button type="button" class="tab" role="tab" id="tabSettings" aria-selected="false" aria-controls="paneSettings" tabindex="-1">Settings</button>
@@ -628,6 +630,17 @@ function clearPersonHash(){
     try{ history.replaceState(null, '', location.pathname + location.search); }catch(e){ location.hash = ''; }
   }
 }
+// Clicking the title starts over: cancels any search, clears the box and results, returns to Search.
+$('home').addEventListener('click', e => {
+  if (e.metaKey || e.ctrlKey || e.shiftKey || e.button) return;   // let "open in new tab" work
+  e.preventDefault();
+  seq++; pendingQ = '';
+  clearPersonHash(); showTab('search');
+  $('q').value = ''; rows = []; $('results').innerHTML = ''; setStatus('');
+  if (DEMO) enterSample();
+  try{ window.scrollTo(0,0); }catch(_){}
+  $('q').focus();
+});
 $('tabSearch').addEventListener('click', () => { clearPersonHash(); showTab('search'); });
 $('tabSettings').addEventListener('click', () => { clearPersonHash(); showTab('settings'); });
 $('tabs').addEventListener('keydown', e => {
