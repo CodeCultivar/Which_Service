@@ -66,6 +66,8 @@ select,.ghost{background:var(--surface);border:1px solid var(--line);border-radi
 .search input::placeholder{color:var(--muted);font-weight:400}
 .search input:focus-visible{border-color:var(--focus);outline:none}
 .primary{background:var(--accent);color:var(--accent-ink);border:0;border-radius:16px;padding:0 26px;font-weight:700;cursor:pointer}
+.reset{background:var(--surface);color:var(--ink);border:2px solid var(--line);border-radius:16px;padding:0 20px;font-weight:700;cursor:pointer}
+.reset:hover{border-color:var(--accent)}
 .primary:hover{filter:brightness(1.06)}
 
 .status{margin:-8px 0 0;color:var(--muted);font-size:.95rem}
@@ -230,6 +232,7 @@ footer{color:var(--muted);font-size:.8rem;display:flex;flex-direction:column;gap
   .svc-item{padding:6px 8px 6px 6px}
   .search input{height:54px;font-size:1.05rem;padding-inline:16px}
   .primary{padding:0 18px}
+  .reset{padding:0 14px}
 }
 @media (prefers-reduced-motion:reduce){*{transition:none!important;animation:none!important}}
 </style>
@@ -247,8 +250,9 @@ footer{color:var(--muted);font-size:.8rem;display:flex;flex-direction:column;gap
   <div class="pane" id="paneSearch" role="tabpanel" aria-labelledby="tabSearch">
     <form class="search" id="searchForm" role="search">
       <label class="sr" for="q">Search movies and shows</label>
-      <input id="q" type="search" placeholder="Search a movie or show" autocomplete="off" enterkeyhint="search">
+      <input id="q" type="search" placeholder="Movie or show" autocomplete="off" enterkeyhint="search">
       <button type="submit" class="primary">Search</button>
+      <button type="button" class="reset" id="resetBtn">Reset</button>
     </form>
     <p class="status" id="status" role="status" aria-live="polite"></p>
 
@@ -631,16 +635,19 @@ function clearPersonHash(){
   }
 }
 // Clicking the title starts over: cancels any search, clears the box and results, returns to Search.
-$('home').addEventListener('click', e => {
-  if (e.metaKey || e.ctrlKey || e.shiftKey || e.button) return;   // let "open in new tab" work
-  e.preventDefault();
+function resetSearch(){
   seq++; pendingQ = '';
   clearPersonHash(); showTab('search');
   $('q').value = ''; rows = []; $('results').innerHTML = ''; setStatus('');
   if (DEMO) enterSample();
   try{ window.scrollTo(0,0); }catch(_){}
   $('q').focus();
+}
+$('home').addEventListener('click', e => {
+  if (e.metaKey || e.ctrlKey || e.shiftKey || e.button) return;   // let "open in new tab" work
+  e.preventDefault(); resetSearch();
 });
+$('resetBtn').addEventListener('click', resetSearch);
 $('tabSearch').addEventListener('click', () => { clearPersonHash(); showTab('search'); });
 $('tabSettings').addEventListener('click', () => { clearPersonHash(); showTab('settings'); });
 $('tabs').addEventListener('keydown', e => {
