@@ -53,8 +53,8 @@ python3 -m http.server
 - **Services row:** lit services are links that open the service's search for the title. Dimmed services are not links.
 - **Queue:** choose **Add to queue** on a result to save it to the end of your list. The Queue tab keeps your order (top is next), and you can move a title with **Top**, **Up** and **Down**. **Mark watched** moves it to a Watched section at the bottom, and **Mark unwatched** puts it back on top. Each time you open the tab it re-checks where every title streams. The queue is saved in this browser only and needs a TMDB key.
 - **Cast:** select a name to open their person page: photo, basic facts (born, birthplace, known for), biography, and a filmography you can filter to movies or TV. Select a credit to search where it streams. The browser Back button returns to your results.
-- **Your services:** the services list with logos. Use **Hide** or **Show** to collapse it. The choice is remembered.
-- **Settings tab:** the TMDB key, region, "Only show titles I can watch", and "Show my services".
+- **Services tab:** the eleven services with logos, and what the lit, $ and dimmed marks mean.
+- **Settings tab:** the TMDB key, region, "Only show titles I can watch", .
 - **Light and dark:** the page follows your system setting.
 
 ## Host it on GitHub Pages
@@ -80,7 +80,7 @@ The hosted page is the same code for everyone: each visitor pastes their own TMD
 - Your TMDB key is stored in plain text in your browser's `localStorage` (key name `ws.key`). It leaves your browser only in requests to `api.themoviedb.org`.
 - The repository contains no key. Never commit one.
 - Anyone who can use your browser profile can read the key. When opened from `file://`, Chrome shares storage across local files, so serving from `localhost` or Pages gives the app its own storage. A TMDB key is free and read-only, and you can regenerate it in your TMDB account at any time.
-- Saved in your browser only: the key, region, the "only show titles I can watch" choice, whether the services list is shown, and cached logo paths.
+- Saved in your browser only: the key, region, the "only show titles I can watch" choice, your queue, and cached logo paths.
 
 ## Regions
 

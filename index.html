@@ -132,6 +132,8 @@ select,.ghost{background:var(--surface);border:1px solid var(--line);border-radi
 .qact:disabled{color:var(--muted);opacity:.5;cursor:default;text-decoration:none}
 .qhead{margin:8px 0 -8px;font:700 .85rem/1 var(--font);letter-spacing:.04em;text-transform:uppercase;color:var(--muted)}
 .tab .count{margin-left:6px;font-size:.8rem;font-weight:700;opacity:.85}
+@media (max-width:480px){.tabs{max-width:100%}.tab{padding:8px 10px;font-size:.88rem}.tab .count{margin-left:4px;font-size:.75rem}}
+@media (max-width:340px){.tab{padding:8px 7px;font-size:.82rem}}
 .more{align-self:flex-start;margin-top:2px;font-size:.9rem}
 .note{margin:6px 0 0;font-size:.9rem;color:var(--muted)}
 
@@ -255,6 +257,7 @@ footer{color:var(--muted);font-size:.8rem;display:flex;flex-direction:column;gap
     <div class="tabs" id="tabs" role="tablist" aria-label="Sections">
     <button type="button" class="tab" role="tab" id="tabSearch" aria-selected="true" aria-controls="paneSearch">Search</button>
     <button type="button" class="tab" role="tab" id="tabQueue" aria-selected="false" aria-controls="paneQueue" tabindex="-1">Queue<span class="count" id="qCount" hidden></span></button>
+    <button type="button" class="tab" role="tab" id="tabServices" aria-selected="false" aria-controls="paneServices" tabindex="-1">Services</button>
     <button type="button" class="tab" role="tab" id="tabSettings" aria-selected="false" aria-controls="paneSettings" tabindex="-1">Settings</button>
   </div>
   </header>
@@ -268,10 +271,18 @@ footer{color:var(--muted);font-size:.8rem;display:flex;flex-direction:column;gap
     </form>
     <p class="status" id="status" role="status" aria-live="polite"></p>
 
+
+    <div class="banner" id="banner" hidden>
+      <span>Sample layout. These titles and their availability are made up so you can see how results look.</span>
+      <button type="button" class="linkbtn" id="bannerKey">Add your TMDB key in Settings</button>
+    </div>
+    <ol class="results" id="results"></ol>
+  </div>
+
+  <div class="pane" id="paneServices" role="tabpanel" aria-labelledby="tabServices" hidden>
     <section class="mine" aria-labelledby="mineLabel">
       <div class="mine-head">
         <h2 id="mineLabel">Your services</h2>
-        <button type="button" class="ghost" id="svcToggle" aria-expanded="true" aria-controls="svcBody">Hide</button>
       </div>
       <div class="mine-body" id="svcBody">
         <ul class="svc-list" id="svcList"></ul>
@@ -280,15 +291,9 @@ footer{color:var(--muted);font-size:.8rem;display:flex;flex-direction:column;gap
           <li><span class="badge pay" aria-hidden="true">$</span> Rent or buy</li>
           <li><span class="dim" aria-hidden="true"></span> Not available</li>
         </ul>
-        <p class="hint">Select a lit service in a result to open that service's search for the title.</p>
+        <p class="hint">In search results, select a lit service to open that service's search for the title.</p>
       </div>
     </section>
-
-    <div class="banner" id="banner" hidden>
-      <span>Sample layout. These titles and their availability are made up so you can see how results look.</span>
-      <button type="button" class="linkbtn" id="bannerKey">Add your TMDB key in Settings</button>
-    </div>
-    <ol class="results" id="results"></ol>
   </div>
 
   <div class="pane" id="paneQueue" role="tabpanel" aria-labelledby="tabQueue" hidden>
@@ -328,10 +333,6 @@ footer{color:var(--muted);font-size:.8rem;display:flex;flex-direction:column;gap
       <div class="opt">
         <div class="opt-text"><label class="opt-name" for="onlyMine">Only show titles I can watch</label><span class="hint">Hides results that aren't on any of your services.</span></div>
         <input type="checkbox" id="onlyMine">
-      </div>
-      <div class="opt">
-        <div class="opt-text"><label class="opt-name" for="showSvcs">Show my services</label><span class="hint">Shows the services list on the Search tab. You can also use its Hide button.</span></div>
-        <input type="checkbox" id="showSvcs">
       </div>
     </section>
   </div>
@@ -386,12 +387,11 @@ const store = {
   del(k){ try{ localStorage.removeItem('ws.'+k); }catch(e){} }
 };
 // Earlier versions saved a service selection. The list is fixed now, so clear it.
-['mine','custom','addedV2'].forEach(k => store.del(k));
+['mine','custom','addedV2','showSvcs'].forEach(k => store.del(k));
 
 let KEY = store.get('key','');
 let REGION = store.get('region','US');
 let ONLY_MINE = store.get('onlyMine', false);
-let SHOW_SVCS = store.get('showSvcs', true);
 let LOGOS = store.get('logos', {});      // service id -> TMDB logo path
 let DEMO = !KEY;
 let rows = [];            // [{h, prov}] where prov: object | null (no data) | undefined (failed)
@@ -746,17 +746,18 @@ function showError(e){
 /* ---------- Tabs ---------- */
 let lastTab = 'search';
 function showTab(name){
-  const settings = name === 'settings', person = name === 'person', queue = name === 'queue';
+  const person = name === 'person';
   if (!person) lastTab = name;
-  $('paneSearch').hidden = settings || person || queue;
-  $('paneSettings').hidden = !settings;
-  $('paneQueue').hidden = !queue;
+  $('paneSearch').hidden = name !== 'search';
+  $('paneServices').hidden = name !== 'services';
+  $('paneQueue').hidden = name !== 'queue';
+  $('paneSettings').hidden = name !== 'settings';
   $('panePerson').hidden = !person;
-  [['search','tabSearch'],['queue','tabQueue'],['settings','tabSettings']].forEach(([n,id]) => {
+  [['search','tabSearch'],['queue','tabQueue'],['services','tabServices'],['settings','tabSettings']].forEach(([n,id]) => {
     $(id).setAttribute('aria-selected', String(name === n));
     $(id).tabIndex = name === n || (person && n === lastTab) ? 0 : -1;
   });
-  if (queue) renderQueue();
+  if (name === 'queue') renderQueue();
 }
 // Leaving a person page by any route other than Back clears its address.
 function clearPersonHash(){
@@ -780,11 +781,12 @@ $('home').addEventListener('click', e => {
 $('resetBtn').addEventListener('click', resetSearch);
 $('tabSearch').addEventListener('click', () => { clearPersonHash(); showTab('search'); });
 $('tabSettings').addEventListener('click', () => { clearPersonHash(); showTab('settings'); });
+$('tabServices').addEventListener('click', () => { clearPersonHash(); showTab('services'); });
 $('tabQueue').addEventListener('click', () => { clearPersonHash(); showTab('queue'); });
 $('tabs').addEventListener('keydown', e => {
   if (e.key !== 'ArrowLeft' && e.key !== 'ArrowRight') return;
   e.preventDefault();
-  const names = ['search','queue','settings'], ids = ['tabSearch','tabQueue','tabSettings'];
+  const names = ['search','queue','services','settings'], ids = ['tabSearch','tabQueue','tabServices','tabSettings'];
   const cur = Math.max(0, ids.findIndex(id => $(id).getAttribute('aria-selected') === 'true'));
   const next = (cur + (e.key === 'ArrowRight' ? 1 : names.length - 1)) % names.length;
   showTab(names[next]); $(ids[next]).focus();
@@ -965,18 +967,6 @@ const SAMPLE = [
   {h:{demo:1,media_type:'movie', title:'Salt Road',          release_date:'2024-02-02',   vote_average:7.0, overview:'A truck driver crossing a salt flat picks up a hitchhiker who claims to know where the road ends.', cast:[{name:'Anselm Okonkwo-Rhee',character:'Dale'}]}, prov:{}}
 ];
 
-/* ---------- Services area: hide and show ---------- */
-function setSvcs(show, save){
-  SHOW_SVCS = show;
-  $('svcBody').hidden = !show;
-  $('svcToggle').textContent = show ? 'Hide' : 'Show';
-  $('svcToggle').setAttribute('aria-expanded', String(show));
-  $('showSvcs').checked = show;
-  if (save) store.set('showSvcs', show);
-}
-$('svcToggle').addEventListener('click', () => setSvcs(!SHOW_SVCS, true));
-$('showSvcs').addEventListener('change', e => setSvcs(e.target.checked, true));
-
 /* ---------- Settings ---------- */
 $('onlyMine').checked = ONLY_MINE;
 $('onlyMine').addEventListener('change', e => { ONLY_MINE = e.target.checked; store.set('onlyMine', ONLY_MINE); if (rows.length) render(); });
@@ -1037,7 +1027,6 @@ $('removeKey').addEventListener('click', () => {
 $('useSample').addEventListener('click', () => { enterSample(); showTab('search'); });
 
 /* ---------- Boot ---------- */
-setSvcs(SHOW_SVCS, false);
 renderServices();
 refreshKeyUi();
 updateQueueUi();
