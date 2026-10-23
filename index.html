@@ -124,6 +124,13 @@ select,.ghost{background:var(--surface);border:1px solid var(--line);border-radi
 .qbtn{background:none;border:0;padding:0;font:inherit;font-weight:600;color:var(--link);cursor:pointer}
 .qbtn:hover{text-decoration:underline}
 .qbtn.on{color:var(--good)}
+.row.watched{opacity:.6}
+.row.watched h3{text-decoration:line-through;text-decoration-thickness:1px}
+.qctl{display:inline-flex;flex-wrap:wrap;gap:4px 12px;align-items:center}
+.qact{background:none;border:0;padding:0;font:inherit;font-weight:600;color:var(--link);cursor:pointer}
+.qact:hover{text-decoration:underline}
+.qact:disabled{color:var(--muted);opacity:.5;cursor:default;text-decoration:none}
+.qhead{margin:8px 0 -8px;font:700 .85rem/1 var(--font);letter-spacing:.04em;text-transform:uppercase;color:var(--muted)}
 .tab .count{margin-left:6px;font-size:.8rem;font-weight:700;opacity:.85}
 .more{align-self:flex-start;margin-top:2px;font-size:.9rem}
 .note{margin:6px 0 0;font-size:.9rem;color:var(--muted)}
@@ -529,23 +536,36 @@ function queueBtn(h){
   const on = inQueue(h);
   return '<button type="button" class="qbtn'+(on?' on':'')+'" data-key="'+esc(keyOf(h))+'" aria-pressed="'+on+'">'+(on?'&#10003; In queue':'+ Add to queue')+'</button>';
 }
+// The queue is kept in order: titles still to watch first (top is next), then watched ones.
+const todo = () => QUEUE.filter(x => !x.watched);
+function queueCtl(h){
+  const k = esc(keyOf(h));
+  const b = (act, label, extra) => '<button type="button" class="qact" data-act="'+act+'" data-key="'+k+'"'+(extra||'')+'>'+label+'</button>';
+  if (h.watched) return '<span class="qctl">'+b('unwatch','Mark unwatched')+b('remove','Remove')+'</span>';
+  const t = todo(), i = t.findIndex(x => keyOf(x) === keyOf(h));
+  return '<span class="qctl">'+b('watch','&#10003; Mark watched')
+    +b('top','&#8679; Top', i === 0 ? ' disabled' : '')
+    +b('up','&#8593; Up', i === 0 ? ' disabled' : '')
+    +b('down','&#8595; Down', i === t.length-1 ? ' disabled' : '')
+    +b('remove','Remove')+'</span>';
+}
 function updateQueueUi(){
-  const c = $('qCount');
-  c.textContent = QUEUE.length; c.hidden = !QUEUE.length;
-  $('tabQueue').setAttribute('aria-label', 'Queue'+(QUEUE.length ? ', '+QUEUE.length+' titles' : ''));
+  const c = $('qCount'), n = todo().length;
+  c.textContent = n; c.hidden = !n;
+  $('tabQueue').setAttribute('aria-label', 'Queue'+(n ? ', '+n+' to watch' : ''));
+}
+function addToQueue(k){
+  const r = rows.find(r => keyOf(r.h) === k);
+  if (!r) return;
+  const h = r.h;
+  const item = {id:h.id, media_type:h.media_type, title:h.title, name:h.name, release_date:h.release_date, first_air_date:h.first_air_date,
+    poster_path:h.poster_path, overview:h.overview, vote_average:h.vote_average, watched:false};
+  QUEUE.splice(todo().length, 0, item);       // joins the end of the to-watch list
 }
 function toggleQueue(k){
   const i = QUEUE.findIndex(x => keyOf(x) === k);
-  if (i >= 0) QUEUE.splice(i,1);
-  else {
-    const r = rows.find(r => keyOf(r.h) === k);
-    if (!r) return;
-    const h = r.h;
-    QUEUE.unshift({id:h.id, media_type:h.media_type, title:h.title, name:h.name, release_date:h.release_date, first_air_date:h.first_air_date,
-      poster_path:h.poster_path, overview:h.overview, vote_average:h.vote_average});
-  }
-  store.set('queue', QUEUE);
-  updateQueueUi();
+  if (i >= 0) QUEUE.splice(i,1); else addToQueue(k);
+  saveQueue();
   document.querySelectorAll('.qbtn').forEach(b => {
     if (b.getAttribute('data-key') !== k) return;
     const on = i < 0;
@@ -553,41 +573,70 @@ function toggleQueue(k){
     b.innerHTML = on ? '&#10003; In queue' : '+ Add to queue';
   });
 }
-let queueSeq = 0;
+function saveQueue(){ store.set('queue', QUEUE); updateQueueUi(); }
+function queueAct(act, k){
+  const i = QUEUE.findIndex(x => keyOf(x) === k);
+  if (i < 0) return;
+  const [it] = QUEUE.splice(i,1), n = todo().length;
+  if (act === 'remove') { /* gone */ }
+  else if (act === 'watch'){ it.watched = true; QUEUE.push(it); }
+  else if (act === 'unwatch'){ it.watched = false; QUEUE.unshift(it); }
+  else {
+    const to = act === 'top' ? 0 : act === 'up' ? Math.max(0, i-1) : Math.min(n, i+1);
+    QUEUE.splice(to, 0, it);
+  }
+  saveQueue();
+}
+let queueSeq = 0, queueRows = new Map();
+function paintQueue(focusKey, focusAct){
+  const list = $('queueList');
+  if (!QUEUE.length){ list.innerHTML = ''; setQueueStatus('Your queue is empty. Search for a title and choose “Add to queue”.'); return; }
+  const rowsQ = QUEUE.map(h => queueRows.get(keyOf(h)) || {h, prov:undefined});
+  rowsQ.forEach(r => { r.h = QUEUE.find(x => keyOf(x) === keyOf(r.h)); rowHtml(r, 'queue'); });   // refreshes rank
+  const part = a => a.map(r => rowHtml(r, 'queue')).join('');
+  const w = rowsQ.filter(r => r.h.watched), t = rowsQ.filter(r => !r.h.watched);
+  list.innerHTML = part(t) + (w.length ? '<li class="qhead" aria-hidden="true">Watched</li>' + part(w) : '');
+  const onNow = t.filter(r => r.rank < 2).length;
+  setQueueStatus(t.length+' to watch'+(t.length ? ', '+onNow+' on your services' : '')+(w.length ? '. '+w.length+' watched.' : '.'));
+  list.querySelectorAll('.cast').forEach(u => { const c = castCache.get(u.getAttribute('data-key')); if (c) u.innerHTML = castChips(c); });
+  if (focusKey){   // keep keyboard focus on the same control after a move
+    let el = list.querySelector('[data-act="'+focusAct+'"][data-key="'+focusKey+'"]:not(:disabled)')
+      || list.querySelector('[data-key="'+focusKey+'"].qact:not(:disabled)');
+    if (el) el.focus();
+  }
+}
 async function renderQueue(){
   const id = ++queueSeq, list = $('queueList');
-  if (!QUEUE.length){ list.innerHTML = ''; setQueueStatus('Your queue is empty. Search for a title and choose “Add to queue”.'); return; }
+  if (!QUEUE.length){ paintQueue(); return; }
   if (DEMO){ list.innerHTML = ''; setQueueStatus('The queue needs a saved TMDB key to check where titles stream. Add one in Settings.'); return; }
   setQueueStatus('Checking where '+QUEUE.length+' queued '+(QUEUE.length === 1 ? 'title streams' : 'titles stream')+' in '+REGIONS[REGION]+'…', 'busy');
   const got = await Promise.all(QUEUE.map(async h => ({h, prov: await providersFor(h).catch(() => undefined)})));
   if (id !== queueSeq) return;
-  got.forEach(r => rowHtml(r));            // sets rank
-  const order = got.map((r,i) => ({r,i})).sort((a,b) => (a.r.rank - b.r.rank) || (a.i - b.i));
-  list.innerHTML = order.map(x => rowHtml(x.r)).join('');
-  list.querySelectorAll('.qbtn').forEach(b => { b.textContent = 'Remove from queue'; b.classList.remove('on'); });
-  const now = got.filter(r => r.rank < 2).length;
-  setQueueStatus(QUEUE.length+(QUEUE.length === 1 ? ' title' : ' titles')+' in your queue, '+now+' on your services.');
+  queueRows = new Map(got.map(r => [keyOf(r.h), r]));
+  paintQueue();
   loadCasts(got).then(() => { if (id === queueSeq) list.querySelectorAll('.cast').forEach(u => {
     const c = castCache.get(u.getAttribute('data-key')); if (c) u.innerHTML = castChips(c); }); });
 }
 function setQueueStatus(t, mode){ const s = $('queueStatus'); s.textContent = t; s.classList.toggle('busy', mode === 'busy'); }
 document.addEventListener('click', e => {
   const b = e.target.closest && e.target.closest('.qbtn');
-  if (!b) return;
-  const k = b.getAttribute('data-key');
-  const inList = !!b.closest('#queueList');
-  toggleQueue(k);
-  if (inList){ const li = b.closest('.row'); if (li) li.remove(); if (!QUEUE.length) renderQueue(); else setQueueStatus(QUEUE.length+(QUEUE.length === 1 ? ' title' : ' titles')+' in your queue.'); }
+  if (b) toggleQueue(b.getAttribute('data-key'));
 });
-// "More" on a queued description.
 $('queueList').addEventListener('click', e => {
-  const b = e.target.closest && e.target.closest('.more');
-  if (!b) return;
-  const p = b.previousElementSibling, open = p.classList.toggle('open');
-  b.textContent = open ? 'Less' : 'More'; b.setAttribute('aria-expanded', String(open));
+  const m = e.target.closest && e.target.closest('.more');
+  if (m){
+    const p = m.previousElementSibling, open = p.classList.toggle('open');
+    m.textContent = open ? 'Less' : 'More'; m.setAttribute('aria-expanded', String(open));
+    return;
+  }
+  const a = e.target.closest && e.target.closest('.qact');
+  if (!a || a.disabled) return;
+  const act = a.getAttribute('data-act'), k = a.getAttribute('data-key');
+  queueAct(act, k);
+  paintQueue(act === 'remove' ? null : k, act);
 });
 
-function rowHtml(r){
+function rowHtml(r, ctx){
   const h = r.h;
   const title = h.title || h.name || 'Untitled';
   const date = h.release_date || h.first_air_date || '';
@@ -620,10 +669,10 @@ function rowHtml(r){
     ? '<p class="overview">'+esc(ov)+'</p>'+(ov.length > 230 ? '<button type="button" class="linkbtn more" aria-expanded="false">More</button>' : '')
     : '<p class="overview empty">No description available.</p>';
   const cast = h.demo ? castChips(h.cast) : castChips(castCache.get(keyOf(h)));
-  return '<li class="row">'
+  return '<li class="row'+(ctx === 'queue' && h.watched ? ' watched' : '')+'">'
     +'<div class="poster'+(h.poster_path ? '' : ' noimg')+'" style="--h:'+hue(title)+'">'+poster+'</div>'
     +'<div class="info"><h3>'+esc(title)+'</h3>'
-    +'<p class="meta"><span class="kind">'+kind+'</span>'+(year?'<span>'+esc(year)+'</span>':'')+(h.vote_average?'<span>&#9733; '+Number(h.vote_average).toFixed(1)+'</span>':'')+watch+queueBtn(h)+'</p>'
+    +'<p class="meta"><span class="kind">'+kind+'</span>'+(year?'<span>'+esc(year)+'</span>':'')+(h.vote_average?'<span>&#9733; '+Number(h.vote_average).toFixed(1)+'</span>':'')+watch+(ctx === 'queue' ? queueCtl(h) : queueBtn(h))+'</p>'
     +overview
     +(r.prov === undefined ? '<p class="note">Could not load where this streams. Search again to retry.</p>' : '')
     +'<p class="sr">'+esc(v.text)+'</p></div>'
