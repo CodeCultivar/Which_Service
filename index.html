@@ -121,6 +121,10 @@ select,.ghost{background:var(--surface);border:1px solid var(--line);border-radi
 .overview{margin:6px 0 0;max-width:66ch;line-height:1.55;display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow:hidden}
 .overview.open{display:block;-webkit-line-clamp:unset;overflow:visible}
 .overview.empty{color:var(--muted)}
+.qbtn{background:none;border:0;padding:0;font:inherit;font-weight:600;color:var(--link);cursor:pointer}
+.qbtn:hover{text-decoration:underline}
+.qbtn.on{color:var(--good)}
+.tab .count{margin-left:6px;font-size:.8rem;font-weight:700;opacity:.85}
 .more{align-self:flex-start;margin-top:2px;font-size:.9rem}
 .note{margin:6px 0 0;font-size:.9rem;color:var(--muted)}
 
@@ -243,6 +247,7 @@ footer{color:var(--muted);font-size:.8rem;display:flex;flex-direction:column;gap
     <h1><a href="./" id="home" class="home" title="Back to the start">Which Service</a></h1>
     <div class="tabs" id="tabs" role="tablist" aria-label="Sections">
     <button type="button" class="tab" role="tab" id="tabSearch" aria-selected="true" aria-controls="paneSearch">Search</button>
+    <button type="button" class="tab" role="tab" id="tabQueue" aria-selected="false" aria-controls="paneQueue" tabindex="-1">Queue<span class="count" id="qCount" hidden></span></button>
     <button type="button" class="tab" role="tab" id="tabSettings" aria-selected="false" aria-controls="paneSettings" tabindex="-1">Settings</button>
   </div>
   </header>
@@ -279,8 +284,13 @@ footer{color:var(--muted);font-size:.8rem;display:flex;flex-direction:column;gap
     <ol class="results" id="results"></ol>
   </div>
 
+  <div class="pane" id="paneQueue" role="tabpanel" aria-labelledby="tabQueue" hidden>
+    <p class="status" id="queueStatus" role="status" aria-live="polite"></p>
+    <ol class="results" id="queueList"></ol>
+  </div>
+
   <div class="pane" id="panePerson" role="region" aria-label="Person" hidden>
-    <div><button type="button" class="ghost" id="personBack">Back to results</button></div>
+    <div><button type="button" class="ghost" id="personBack">Back</button></div>
     <div id="personBody" aria-live="polite"></div>
   </div>
 
@@ -510,6 +520,73 @@ function castChips(list){
   }).join('');
 }
 
+/* ---------- Queue ---------- */
+let QUEUE = store.get('queue', []);
+if (!Array.isArray(QUEUE)) QUEUE = [];
+const inQueue = h => QUEUE.some(x => keyOf(x) === keyOf(h));
+function queueBtn(h){
+  if (h.demo) return '';
+  const on = inQueue(h);
+  return '<button type="button" class="qbtn'+(on?' on':'')+'" data-key="'+esc(keyOf(h))+'" aria-pressed="'+on+'">'+(on?'&#10003; In queue':'+ Add to queue')+'</button>';
+}
+function updateQueueUi(){
+  const c = $('qCount');
+  c.textContent = QUEUE.length; c.hidden = !QUEUE.length;
+  $('tabQueue').setAttribute('aria-label', 'Queue'+(QUEUE.length ? ', '+QUEUE.length+' titles' : ''));
+}
+function toggleQueue(k){
+  const i = QUEUE.findIndex(x => keyOf(x) === k);
+  if (i >= 0) QUEUE.splice(i,1);
+  else {
+    const r = rows.find(r => keyOf(r.h) === k);
+    if (!r) return;
+    const h = r.h;
+    QUEUE.unshift({id:h.id, media_type:h.media_type, title:h.title, name:h.name, release_date:h.release_date, first_air_date:h.first_air_date,
+      poster_path:h.poster_path, overview:h.overview, vote_average:h.vote_average});
+  }
+  store.set('queue', QUEUE);
+  updateQueueUi();
+  document.querySelectorAll('.qbtn').forEach(b => {
+    if (b.getAttribute('data-key') !== k) return;
+    const on = i < 0;
+    b.classList.toggle('on', on); b.setAttribute('aria-pressed', String(on));
+    b.innerHTML = on ? '&#10003; In queue' : '+ Add to queue';
+  });
+}
+let queueSeq = 0;
+async function renderQueue(){
+  const id = ++queueSeq, list = $('queueList');
+  if (!QUEUE.length){ list.innerHTML = ''; setQueueStatus('Your queue is empty. Search for a title and choose “Add to queue”.'); return; }
+  if (DEMO){ list.innerHTML = ''; setQueueStatus('The queue needs a saved TMDB key to check where titles stream. Add one in Settings.'); return; }
+  setQueueStatus('Checking where '+QUEUE.length+' queued '+(QUEUE.length === 1 ? 'title streams' : 'titles stream')+' in '+REGIONS[REGION]+'…', 'busy');
+  const got = await Promise.all(QUEUE.map(async h => ({h, prov: await providersFor(h).catch(() => undefined)})));
+  if (id !== queueSeq) return;
+  got.forEach(r => rowHtml(r));            // sets rank
+  const order = got.map((r,i) => ({r,i})).sort((a,b) => (a.r.rank - b.r.rank) || (a.i - b.i));
+  list.innerHTML = order.map(x => rowHtml(x.r)).join('');
+  list.querySelectorAll('.qbtn').forEach(b => { b.textContent = 'Remove from queue'; b.classList.remove('on'); });
+  const now = got.filter(r => r.rank < 2).length;
+  setQueueStatus(QUEUE.length+(QUEUE.length === 1 ? ' title' : ' titles')+' in your queue, '+now+' on your services.');
+  loadCasts(got).then(() => { if (id === queueSeq) list.querySelectorAll('.cast').forEach(u => {
+    const c = castCache.get(u.getAttribute('data-key')); if (c) u.innerHTML = castChips(c); }); });
+}
+function setQueueStatus(t, mode){ const s = $('queueStatus'); s.textContent = t; s.classList.toggle('busy', mode === 'busy'); }
+document.addEventListener('click', e => {
+  const b = e.target.closest && e.target.closest('.qbtn');
+  if (!b) return;
+  const k = b.getAttribute('data-key');
+  const inList = !!b.closest('#queueList');
+  toggleQueue(k);
+  if (inList){ const li = b.closest('.row'); if (li) li.remove(); if (!QUEUE.length) renderQueue(); else setQueueStatus(QUEUE.length+(QUEUE.length === 1 ? ' title' : ' titles')+' in your queue.'); }
+});
+// "More" on a queued description.
+$('queueList').addEventListener('click', e => {
+  const b = e.target.closest && e.target.closest('.more');
+  if (!b) return;
+  const p = b.previousElementSibling, open = p.classList.toggle('open');
+  b.textContent = open ? 'Less' : 'More'; b.setAttribute('aria-expanded', String(open));
+});
+
 function rowHtml(r){
   const h = r.h;
   const title = h.title || h.name || 'Untitled';
@@ -546,7 +623,7 @@ function rowHtml(r){
   return '<li class="row">'
     +'<div class="poster'+(h.poster_path ? '' : ' noimg')+'" style="--h:'+hue(title)+'">'+poster+'</div>'
     +'<div class="info"><h3>'+esc(title)+'</h3>'
-    +'<p class="meta"><span class="kind">'+kind+'</span>'+(year?'<span>'+esc(year)+'</span>':'')+(h.vote_average?'<span>&#9733; '+Number(h.vote_average).toFixed(1)+'</span>':'')+watch+'</p>'
+    +'<p class="meta"><span class="kind">'+kind+'</span>'+(year?'<span>'+esc(year)+'</span>':'')+(h.vote_average?'<span>&#9733; '+Number(h.vote_average).toFixed(1)+'</span>':'')+watch+queueBtn(h)+'</p>'
     +overview
     +(r.prov === undefined ? '<p class="note">Could not load where this streams. Search again to retry.</p>' : '')
     +'<p class="sr">'+esc(v.text)+'</p></div>'
@@ -618,15 +695,19 @@ function showError(e){
 }
 
 /* ---------- Tabs ---------- */
+let lastTab = 'search';
 function showTab(name){
-  const settings = name === 'settings', person = name === 'person';
-  $('paneSearch').hidden = settings || person;
+  const settings = name === 'settings', person = name === 'person', queue = name === 'queue';
+  if (!person) lastTab = name;
+  $('paneSearch').hidden = settings || person || queue;
   $('paneSettings').hidden = !settings;
+  $('paneQueue').hidden = !queue;
   $('panePerson').hidden = !person;
-  $('tabSearch').setAttribute('aria-selected', String(name === 'search'));
-  $('tabSettings').setAttribute('aria-selected', String(settings));
-  $('tabSearch').tabIndex = settings ? -1 : 0;
-  $('tabSettings').tabIndex = settings ? 0 : -1;
+  [['search','tabSearch'],['queue','tabQueue'],['settings','tabSettings']].forEach(([n,id]) => {
+    $(id).setAttribute('aria-selected', String(name === n));
+    $(id).tabIndex = name === n || (person && n === lastTab) ? 0 : -1;
+  });
+  if (queue) renderQueue();
 }
 // Leaving a person page by any route other than Back clears its address.
 function clearPersonHash(){
@@ -650,12 +731,14 @@ $('home').addEventListener('click', e => {
 $('resetBtn').addEventListener('click', resetSearch);
 $('tabSearch').addEventListener('click', () => { clearPersonHash(); showTab('search'); });
 $('tabSettings').addEventListener('click', () => { clearPersonHash(); showTab('settings'); });
+$('tabQueue').addEventListener('click', () => { clearPersonHash(); showTab('queue'); });
 $('tabs').addEventListener('keydown', e => {
   if (e.key !== 'ArrowLeft' && e.key !== 'ArrowRight') return;
   e.preventDefault();
-  const toSettings = $('paneSettings').hidden;
-  showTab(toSettings ? 'settings' : 'search');
-  (toSettings ? $('tabSettings') : $('tabSearch')).focus();
+  const names = ['search','queue','settings'], ids = ['tabSearch','tabQueue','tabSettings'];
+  const cur = Math.max(0, ids.findIndex(id => $(id).getAttribute('aria-selected') === 'true'));
+  const next = (cur + (e.key === 'ArrowRight' ? 1 : names.length - 1)) % names.length;
+  showTab(names[next]); $(ids[next]).focus();
 });
 
 /* ---------- Search ---------- */
@@ -804,14 +887,14 @@ function route(){
     if (DEMO){ clearPersonHash(); return; }
     personNav++; openPerson(m[1]);
   } else if (!$('panePerson').hidden){
-    showTab('search');
+    showTab(lastTab);
   }
 }
 if (window.addEventListener) window.addEventListener('hashchange', route);
 
 $('personBack').addEventListener('click', () => {
   if (personNav > 0){ personNav--; try{ history.back(); return; }catch(e){} }
-  clearPersonHash(); showTab('search');
+  clearPersonHash(); showTab(lastTab);
 });
 $('personBody').addEventListener('click', e => {
   const t = e.target.closest ? e.target : null;
@@ -908,6 +991,7 @@ $('useSample').addEventListener('click', () => { enterSample(); showTab('search'
 setSvcs(SHOW_SVCS, false);
 renderServices();
 refreshKeyUi();
+updateQueueUi();
 if (DEMO) enterSample();
 else { setStatus('Search for a title to see where it streams in '+REGIONS[REGION]+'.'); loadLogos(); route(); }
 </script>
