@@ -54,6 +54,7 @@ python3 -m http.server
 - **Queue:** choose **Add to queue** on a result to save it to the end of your list. The Queue tab keeps your order (top is next), and you can move a title with **Top**, **Up** and **Down**. **Mark watched** moves it to a Watched section at the bottom, and **Mark unwatched** puts it back on top. Each time you open the tab it re-checks where every title streams. The queue is saved in this browser only and needs a TMDB key.
 - **Cast:** select a name to open their person page: photo, basic facts (born, birthplace, known for), biography, and a filmography you can filter to movies or TV. Select a credit to search where it streams. The browser Back button returns to your results.
 - **Services tab:** the eleven services with logos, and what the lit, $ and dimmed marks mean.
+- **Sync:** the queue is stored per browser. In Settings, **Copy sync code** makes a code on one device, and **Import code** on another device replaces its queue with it (titles, order, watched, region). The code never includes your TMDB key. It is a manual copy and paste, not automatic syncing, because the app has no server.
 - **Settings tab:** the TMDB key, region, "Only show titles I can watch", .
 - **Light and dark:** the page follows your system setting.
 

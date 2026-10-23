@@ -218,6 +218,12 @@ a.ci:hover .svc{text-decoration:underline}
 .keyrow{display:flex;flex-wrap:wrap;gap:8px}
 .keyrow input{flex:1 1 220px;min-width:0;background:var(--bg);border:1px solid var(--line);border-radius:12px;padding:12px 14px}
 .keyrow .primary{padding:12px 20px;border-radius:12px}
+.syncrow{display:flex}
+.syncrow .primary,.syncrow .ghost{min-height:48px;padding:0 22px;border-radius:14px}
+.syncrow .ghost{font-weight:700}
+#syncBox{width:100%;box-sizing:border-box;background:var(--surface);color:var(--ink);border:2px solid var(--line);border-radius:12px;padding:12px;font:.85rem/1.4 ui-monospace,SFMono-Regular,Menlo,monospace;resize:vertical;word-break:break-all}
+#syncBox::placeholder{word-break:normal;color:var(--muted)}
+#syncBox:focus-visible{border-color:var(--focus);outline:none}
 .keymsg{margin:0;font-size:.95rem}
 .keymsg:empty{display:none}
 .card .keymsg.err{color:var(--danger)}
@@ -344,6 +350,16 @@ footer{color:var(--muted);font-size:.8rem;display:flex;flex-direction:column;gap
         <div class="opt-text"><label class="opt-name" for="onlyMine">Only show titles I can watch</label><span class="hint">Hides results that aren't on any of your services.</span></div>
         <input type="checkbox" id="onlyMine">
       </div>
+    </section>
+
+    <section class="card" aria-labelledby="syncHead">
+      <h2 id="syncHead">Sync between devices</h2>
+      <p>Your queue lives in this browser. To move it to another device, copy a sync code here and paste it into Settings on the other device. Importing replaces that device's queue. The code holds your queue and region only, never your TMDB key.</p>
+      <div class="syncrow"><button type="button" class="primary" id="syncCopy">Copy sync code</button></div>
+      <label class="sr" for="syncBox">Sync code</label>
+      <textarea id="syncBox" rows="3" placeholder="Paste a sync code from another device" spellcheck="false" autocapitalize="off" autocomplete="off"></textarea>
+      <div class="syncrow"><button type="button" class="ghost" id="syncImport">Import code</button></div>
+      <p class="keymsg" id="syncMsg" role="status" aria-live="polite"></p>
     </section>
   </div>
 
@@ -740,6 +756,50 @@ function setStatus(t, mode){
   s.classList.toggle('err', mode === true || mode === 'err');
   s.classList.toggle('busy', mode === 'busy');
 }
+/* ---------- Sync code (copy on one device, paste on another) ---------- */
+const b64 = bytes => { let s = ''; bytes.forEach(b => s += String.fromCharCode(b)); return btoa(s).replace(/\+/g,'-').replace(/\//g,'_').replace(/=+$/,''); };
+const unb64 = t => Uint8Array.from(atob(t.replace(/-/g,'+').replace(/_/g,'/')), c => c.charCodeAt(0));
+async function pipe(bytes, Ctor, kind){
+  const st = new Blob([bytes]).stream().pipeThrough(new Ctor(kind));
+  return new Uint8Array(await new Response(st).arrayBuffer());
+}
+async function makeSyncCode(){
+  const items = QUEUE.map(h => ({id:h.id, m:h.media_type, t:h.title||undefined, n:h.name||undefined, d:h.release_date||h.first_air_date||undefined,
+    p:h.poster_path||undefined, o:(h.overview||'').slice(0,260)||undefined, v:h.vote_average||undefined, w:h.watched ? 1 : undefined}));
+  const bytes = new TextEncoder().encode(JSON.stringify({v:1, region:REGION, q:items}));
+  if (typeof CompressionStream === 'function'){ try{ return 'WS1z.'+b64(await pipe(bytes, CompressionStream, 'gzip')); }catch(e){} }
+  return 'WS1.'+b64(bytes);
+}
+async function readSyncCode(text){
+  const t = (text||'').trim().replace(/\s+/g,'');
+  const m = /^WS1(z?)\.([A-Za-z0-9_-]+)$/.exec(t);
+  if (!m) throw new Error('That does not look like a sync code. Copy the whole code from the other device.');
+  let bytes = unb64(m[2]);
+  if (m[1]){ if (typeof DecompressionStream !== 'function') throw new Error('This browser cannot read compressed sync codes.'); bytes = await pipe(bytes, DecompressionStream, 'gzip'); }
+  const d = JSON.parse(new TextDecoder().decode(bytes));
+  if (!d || d.v !== 1 || !Array.isArray(d.q)) throw new Error('That sync code is not supported by this version.');
+  const q = d.q.filter(x => x && Number.isInteger(x.id) && (x.m === 'movie' || x.m === 'tv')).map(x => ({
+    id:x.id, media_type:x.m, title:x.t, name:x.n, release_date:x.m === 'movie' ? x.d : undefined, first_air_date:x.m === 'tv' ? x.d : undefined,
+    poster_path:typeof x.p === 'string' && /^\/[\w.-]+$/.test(x.p) ? x.p : undefined, overview:typeof x.o === 'string' ? x.o : '', vote_average:Number(x.v)||undefined, watched:!!x.w}));
+  return {q, region: REGIONS[d.region] ? d.region : null};
+}
+function syncMsg(t, kind){ const m = $('syncMsg'); m.textContent = t; m.className = 'keymsg' + (kind ? ' '+kind : ''); }
+$('syncCopy').addEventListener('click', async () => {
+  const code = await makeSyncCode();
+  $('syncBox').value = code;
+  try{ await navigator.clipboard.writeText(code); syncMsg('Copied. Paste it into Settings on your other device and choose Import.', 'ok'); }
+  catch(e){ $('syncBox').select(); syncMsg('Select the code above and copy it, then paste it on your other device.', 'ok'); }
+});
+$('syncImport').addEventListener('click', async () => {
+  try{
+    const r = await readSyncCode($('syncBox').value);
+    QUEUE = r.q.slice().sort((a,b) => (a.watched?1:0) - (b.watched?1:0));
+    if (r.region && r.region !== REGION){ REGION = r.region; store.set('region', REGION); const sel = $('region'); if (sel) sel.value = REGION; provCache.clear(); }
+    saveQueue(); queueRows = new Map();
+    $('syncBox').value = '';
+    syncMsg('Imported '+QUEUE.length+(QUEUE.length === 1 ? ' title' : ' titles')+'. Open the Queue tab to see them.', 'ok');
+  }catch(e){ syncMsg(e && e.message ? e.message : 'Could not read that code.', 'err'); }
+});
 function keyMsg(t, kind){ const m = $('keyMsg'); m.textContent = t; m.className = 'keymsg' + (kind ? ' '+kind : ''); }
 
 // Says where the page is running, because a preview frame blocks outside requests.
