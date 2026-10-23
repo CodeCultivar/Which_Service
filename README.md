@@ -55,6 +55,7 @@ python3 -m http.server
 - **Cast:** select a name to open their person page: photo, basic facts (born, birthplace, known for), biography, and a filmography you can filter to movies or TV. Select a credit to search where it streams. The browser Back button returns to your results.
 - **Services tab:** the eleven services with logos, and what the lit, $ and dimmed marks mean.
 - **Sync:** the queue is stored per browser. In Settings, **Copy sync code** makes a code on one device, and **Import code** on another device replaces its queue with it (titles, order, watched, region). The code never includes your TMDB key. It is a manual copy and paste, not automatic syncing, because the app has no server.
+- **Key box:** once a working key is saved, Settings shows only **Replace key**, **Remove key** and **Use sample data**. Choose **Replace key** to show the paste box again, or **Cancel** to hide it.
 - **Settings tab:** the TMDB key, region, "Only show titles I can watch", .
 - **Light and dark:** the page follows your system setting.
 

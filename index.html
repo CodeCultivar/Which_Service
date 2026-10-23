@@ -224,6 +224,12 @@ a.ci:hover .svc{text-decoration:underline}
 #syncBox{width:100%;box-sizing:border-box;background:var(--surface);color:var(--ink);border:2px solid var(--line);border-radius:12px;padding:12px;font:.85rem/1.4 ui-monospace,SFMono-Regular,Menlo,monospace;resize:vertical;word-break:break-all}
 #syncBox::placeholder{word-break:normal;color:var(--muted)}
 #syncBox:focus-visible{border-color:var(--focus);outline:none}
+.keysaved{display:flex;align-items:center;gap:10px;margin:0;font-weight:600}
+.keysaved[hidden]{display:none}
+.keysaved .badge{position:static}
+.keyactions{display:flex;flex-wrap:wrap;gap:10px}
+.keyactions .ghost{min-height:44px;padding:0 18px;border-radius:12px;font-weight:700}
+#keySetup[hidden],.keyactions [hidden]{display:none}
 .keymsg{margin:0;font-size:.95rem}
 .keymsg:empty{display:none}
 .card .keymsg.err{color:var(--danger)}
@@ -325,19 +331,27 @@ footer{color:var(--muted);font-size:.8rem;display:flex;flex-direction:column;gap
   <div class="pane" id="paneSettings" role="tabpanel" aria-labelledby="tabSettings" hidden>
     <section class="card" aria-labelledby="keyHead">
       <h2 id="keyHead">TMDB key</h2>
-      <p>Availability data comes from TMDB, which is free for personal use. Your key stays in this browser and is only sent to TMDB.</p>
-      <ol>
-        <li>Make a free account at <a href="https://www.themoviedb.org/signup" target="_blank" rel="noopener">themoviedb.org</a>.</li>
-        <li>Open Settings, then API, and request a developer key.</li>
-        <li>Paste either the API Key or the Read Access Token below.</li>
-      </ol>
-      <form class="keyrow" id="keyForm">
-        <label class="sr" for="keyInput">TMDB API key or read access token</label>
-        <input id="keyInput" type="text" autocomplete="off" autocapitalize="off" spellcheck="false" placeholder="Paste key">
-        <button type="submit" class="primary" id="saveKey">Save and test key</button>
-      </form>
+      <p id="keySaved" class="keysaved" hidden><span class="badge in" aria-hidden="true">&#10003;</span> A working key is saved on this device.</p>
+      <div id="keySetup">
+        <p>Availability data comes from TMDB, which is free for personal use. Your key stays in this browser and is only sent to TMDB.</p>
+        <ol id="keySteps">
+          <li>Make a free account at <a href="https://www.themoviedb.org/signup" target="_blank" rel="noopener">themoviedb.org</a>.</li>
+          <li>Open Settings, then API, and request a developer key.</li>
+          <li>Paste either the API Key or the Read Access Token below.</li>
+        </ol>
+        <form class="keyrow" id="keyForm">
+          <label class="sr" for="keyInput">TMDB API key or read access token</label>
+          <input id="keyInput" type="text" autocomplete="off" autocapitalize="off" spellcheck="false" placeholder="Paste key">
+          <button type="submit" class="primary" id="saveKey">Save and test key</button>
+        </form>
+      </div>
       <p class="keymsg" id="keyMsg" role="status" aria-live="polite"></p>
-      <p><button type="button" class="linkbtn" id="useSample">Use sample data</button> <span id="removeWrap" hidden> · <button type="button" class="linkbtn" id="removeKey">Remove saved key</button></span></p>
+      <div class="keyactions">
+        <button type="button" class="ghost" id="replaceKey" hidden>Replace key</button>
+        <button type="button" class="ghost" id="cancelReplace" hidden>Cancel</button>
+        <button type="button" class="ghost" id="removeKey" hidden>Remove key</button>
+        <button type="button" class="ghost" id="useSample">Use sample data</button>
+      </div>
     </section>
 
     <section class="card" aria-labelledby="optHead">
@@ -1056,10 +1070,19 @@ $('region').addEventListener('change', e => {
 
 $('searchForm').addEventListener('submit', e => { e.preventDefault(); runSearch($('q').value); });
 
+let REPLACING = false;   // the key box is shown even though a key is saved
 function refreshKeyUi(){
-  $('removeWrap').hidden = !KEY;
-  $('keyInput').placeholder = KEY ? 'A key is saved on this device. Paste a new one to replace it.' : 'Paste key';
+  const showForm = !KEY || REPLACING;
+  $('keySetup').hidden = !showForm;
+  $('keySaved').hidden = !KEY || REPLACING;
+  $('replaceKey').hidden = !KEY || REPLACING;
+  $('cancelReplace').hidden = !(KEY && REPLACING);
+  $('removeKey').hidden = !KEY;
+  $('useSample').hidden = REPLACING;
+  $('keyInput').placeholder = KEY ? 'Paste a new key to replace the saved one' : 'Paste key';
 }
+$('replaceKey').addEventListener('click', () => { REPLACING = true; keyMsg(''); refreshKeyUi(); $('keyInput').focus(); });
+$('cancelReplace').addEventListener('click', () => { REPLACING = false; $('keyInput').value = ''; keyMsg(''); refreshKeyUi(); });
 
 function enterSample(){
   DEMO = true; rows = SAMPLE.map(r => ({h:r.h, prov:r.prov})); $('banner').hidden = false; render();
@@ -1088,6 +1111,7 @@ $('keyForm').addEventListener('submit', async e => {
   store.set('key', KEY); provCache.clear(); $('keyInput').value = '';
   leaveSample();
   loadLogos();
+  REPLACING = false;
   refreshKeyUi();
   keyMsg('Key works and is saved on this device.', 'ok');
   setStatus('');
@@ -1096,7 +1120,7 @@ $('keyForm').addEventListener('submit', async e => {
   else setTimeout(() => { showTab('search'); $('q').focus(); }, 1200);
 });
 $('removeKey').addEventListener('click', () => {
-  KEY = ''; store.del('key'); provCache.clear(); enterSample(); refreshKeyUi(); keyMsg('Key removed.', 'ok');
+  KEY = ''; REPLACING = false; store.del('key'); provCache.clear(); enterSample(); refreshKeyUi(); keyMsg('Key removed.', 'ok');
 });
 $('useSample').addEventListener('click', () => { enterSample(); showTab('search'); });
 
