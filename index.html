@@ -81,7 +81,8 @@ select,.ghost{background:var(--surface);border:1px solid var(--line);border-radi
 .mine-body{display:flex;flex-direction:column;gap:12px}
 .mine-body[hidden]{display:none}
 .svc-list{list-style:none;margin:0;padding:0;display:flex;flex-wrap:wrap;gap:8px}
-.svc-item{display:flex;align-items:center;gap:10px;background:var(--surface);border:1px solid var(--line);border-radius:14px;padding:6px 14px 6px 6px;min-width:0}
+.svc-item:hover{border-color:var(--muted)}
+.svc-item{text-decoration:none;color:inherit;min-height:48px;display:flex;align-items:center;gap:10px;background:var(--surface);border:1px solid var(--line);border-radius:14px;padding:6px 14px 6px 6px;min-width:0}
 .svc-text{display:flex;flex-direction:column;min-width:0}
 .svc-name{font-weight:600;line-height:1.2;overflow-wrap:anywhere}
 .svc-sub{font-size:.75rem;line-height:1.2;color:var(--muted);overflow-wrap:anywhere}
@@ -121,16 +122,25 @@ select,.ghost{background:var(--surface);border:1px solid var(--line);border-radi
 .overview{margin:6px 0 0;max-width:66ch;line-height:1.55;display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow:hidden}
 .overview.open{display:block;-webkit-line-clamp:unset;overflow:visible}
 .overview.empty{color:var(--muted)}
-.qbtn{background:none;border:0;padding:0;font:inherit;font-weight:600;color:var(--link);cursor:pointer}
-.qbtn:hover{text-decoration:underline}
-.qbtn.on{color:var(--good)}
 .row.watched{opacity:.6}
 .row.watched h3{text-decoration:line-through;text-decoration-thickness:1px}
-.qctl{display:inline-flex;flex-wrap:wrap;gap:4px 12px;align-items:center}
-.qact{background:none;border:0;padding:0;font:inherit;font-weight:600;color:var(--link);cursor:pointer}
-.qact:hover{text-decoration:underline}
-.qact:disabled{color:var(--muted);opacity:.5;cursor:default;text-decoration:none}
 .qhead{margin:8px 0 -8px;font:700 .85rem/1 var(--font);letter-spacing:.04em;text-transform:uppercase;color:var(--muted)}
+.qbtn,.qact{display:inline-flex;align-items:center;justify-content:center;gap:6px;min-height:40px;padding:0 16px;font:inherit;font-size:.92rem;font-weight:700;color:var(--ink);background:var(--surface);border:2px solid var(--line);border-radius:999px;cursor:pointer;touch-action:manipulation;-webkit-tap-highlight-color:transparent}
+.qbtn:hover,.qact:hover{border-color:var(--accent)}
+.qbtn:active,.qact:active{transform:scale(.97)}
+.qbtn.on{background:var(--none-bg);border-color:var(--good);color:var(--good)}
+.qact[data-act=watch]{background:var(--accent);border-color:var(--accent);color:var(--accent-ink)}
+.qact[data-act=remove]{color:var(--muted)}
+.qact:disabled{opacity:.4;cursor:default;border-color:var(--line)}
+.qact:disabled:hover{border-color:var(--line)}
+.qctl{display:flex;flex-wrap:wrap;gap:8px;align-items:center;flex-basis:100%;margin-top:8px}
+.meta .qbtn{margin-top:8px;flex-basis:auto}
+@media (pointer:coarse),(max-width:640px){.qbtn,.qact{min-height:48px;padding:0 18px;font-size:1rem}.qctl{gap:10px}.linkbtn.more{min-height:44px;padding:0 4px}
+  .qctl{display:grid;grid-template-columns:repeat(6,minmax(0,1fr))}
+  .qctl .qact{padding:0 6px;white-space:nowrap}
+  .qctl [data-act=watch],.qctl [data-act=unwatch]{grid-column:span 3;order:1}
+  .qctl [data-act=remove]{grid-column:span 3;order:2}
+  .qctl [data-act=top],.qctl [data-act=up],.qctl [data-act=down]{grid-column:span 2;order:3}.ghost,.tab{min-height:44px}}
 .tab .count{margin-left:6px;font-size:.8rem;font-weight:700;opacity:.85}
 @media (max-width:480px){.tabs{max-width:100%}.tab{padding:8px 10px;font-size:.88rem}.tab .count{margin-left:4px;font-size:.75rem}}
 @media (max-width:340px){.tab{padding:8px 7px;font-size:.82rem}}
@@ -291,7 +301,7 @@ footer{color:var(--muted);font-size:.8rem;display:flex;flex-direction:column;gap
           <li><span class="badge pay" aria-hidden="true">$</span> Rent or buy</li>
           <li><span class="dim" aria-hidden="true"></span> Not available</li>
         </ul>
-        <p class="hint">In search results, select a lit service to open that service's search for the title.</p>
+        <p class="hint">Select a service to open it. In search results, a lit service opens that service's search for the title. On a phone with the app installed, these links usually open the app.</p>
       </div>
     </section>
   </div>
@@ -365,6 +375,10 @@ const SERVICES = [
 const TILE = {disney:'#1B4DD6',hulu:'#14A265',hbo:'#6B35D9',netflix:'#D81F26',youtubetv:'#E0283C',ytpremium:'#A3162F',apple:'#2B2B33',peacock:'#C99A00',paramount:'#1E6BE6',prime:'#0F79AF',crunchyroll:'#E8691A'};
 // Where a lit cell sends you. TMDB can say a service carries a title but has no link to the title's own page,
 // so each service opens its own search for the title. Edit a line here if a service changes its address.
+// Each service's own front page. On a phone with the app installed these links usually open the app.
+const HOME = {disney:'https://www.disneyplus.com/', hulu:'https://www.hulu.com/', hbo:'https://play.hbomax.com/', netflix:'https://www.netflix.com/',
+  youtubetv:'https://tv.youtube.com/', ytpremium:'https://www.youtube.com/', apple:'https://tv.apple.com/', peacock:'https://www.peacocktv.com/',
+  paramount:'https://www.paramountplus.com/', prime:'https://www.amazon.com/gp/video/storefront', crunchyroll:'https://www.crunchyroll.com/'};
 const SEARCH = {
   disney:      q => 'https://www.disneyplus.com/search/'+q,
   hulu:        q => 'https://www.hulu.com/search?q='+q,
@@ -477,8 +491,8 @@ function logoHtml(svc, size){
 
 function renderServices(){
   $('svcList').innerHTML = SERVICES.map(s =>
-    '<li class="svc-item"><span class="lg" aria-hidden="true">'+logoHtml(s,32)+'</span>'
-    +'<span class="svc-text"><span class="svc-name">'+esc(s.label)+'</span>'+(s.sub ? '<span class="svc-sub">'+esc(s.sub)+'</span>' : '')+'</span></li>').join('');
+    '<li><a class="svc-item" href="'+esc(HOME[s.id] || '#')+'" target="_blank" rel="noopener noreferrer" aria-label="Open '+esc(s.label)+'"><span class="lg" aria-hidden="true">'+logoHtml(s,32)+'</span>'
+    +'<span class="svc-text"><span class="svc-name">'+esc(s.label)+'</span>'+(s.sub ? '<span class="svc-sub">'+esc(s.sub)+'</span>' : '')+'</span></a></li>').join('');
 }
 
 /* ---------- Availability logic ---------- */
