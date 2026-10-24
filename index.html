@@ -760,6 +760,7 @@ function updateQueueUi(){
 function addToQueue(k){
   const r = rows.find(r => keyOf(r.h) === k);
   if (!r) return;
+  if (QUEUE.length >= MAX_QUEUE){ setStatus('A queue holds up to '+MAX_QUEUE+' titles. Remove some watched ones to add more.'); return; }
   const h = r.h;
   const item = {id:h.id, media_type:h.media_type, title:h.title, name:h.name, release_date:h.release_date, first_air_date:h.first_air_date,
     poster_path:h.poster_path, overview:h.overview, vote_average:h.vote_average, watched:false};
@@ -771,7 +772,7 @@ function toggleQueue(k){
   saveQueue();
   document.querySelectorAll('.qbtn').forEach(b => {
     if (b.getAttribute('data-key') !== k) return;
-    const on = i < 0;
+    const on = QUEUE.some(x => keyOf(x) === k);
     b.classList.toggle('on', on); b.setAttribute('aria-pressed', String(on));
     b.innerHTML = qLabel(on);
   });
@@ -1144,7 +1145,8 @@ let picking = '';   // id of the queue whose creator is choosing who takes over;
 let armed = '';   // the two-step button waiting for a second tap: '<queue id>:leave' or '<queue id>:delete'
 let renameId = '';
 const listMsg = (t, kind) => { ['listMsg','listMsgQ'].forEach(id => { const m = $(id); m.textContent = t; m.className = 'keymsg' + (kind ? ' '+kind : ''); }); };
-const inviteLink = id => location.origin + location.pathname + '#join=' + id;
+const inviteLink = code => location.origin + location.pathname + '#invite=' + code;
+const INVITE_DAYS = 7, MAX_CREATED = 50, MAX_QUEUE = 500, MAX_MEMBERS = 20;
 
 function setActive(id){
   if (id !== 'me' && !LISTS[id]) id = 'me';
@@ -1178,10 +1180,14 @@ function renderListBar(){
         +'<div class="keyactions">'+others.map(u => '<button type="button" class="ghost" data-newowner="'+esc(u)+'">'+esc(nameOf(L, u))+'</button>').join('')
         +'<button type="button" class="ghost" data-lact="cancelpick">Cancel</button></div></div>';
     }
-    return '<div class="lcard'+(id === ACTIVE ? ' cur' : '')+'" data-lid="'+id+'">'+head+'<span>Members: '+esc((L.members || []).map(u => nameOf(L, u)).join(', '))+'</span></p>'
+    const others = (L.members || []).filter(u => u !== me);
+    const kick = mine && others.length ? '<div class="keyactions">'+others.map(u => '<button type="button" class="ghost" data-lact="kick" data-uid="'+esc(u)+'">'
+      +(armed === id+':kick:'+u ? 'Tap again to remove '+esc(nameOf(L, u)) : 'Remove '+esc(nameOf(L, u)))+'</button>').join('')+'</div>' : '';
+    return '<div class="lcard'+(id === ACTIVE ? ' cur' : '')+'" data-lid="'+id+'">'+head+'<span>Members: '+esc((L.members || []).map(u => nameOf(L, u)).join(', '))+'</span></p>'+kick
       +'<div class="keyactions"><button type="button" class="ghost" data-lact="open">Open</button>'
       +'<button type="button" class="ghost" data-lact="invite">Invite</button>'
       +'<button type="button" class="ghost" data-lact="rename">Rename</button>'
+      +(mine ? '<button type="button" class="ghost" data-lact="reset">'+(armed === id+':reset' ? 'Tap again to cancel all links' : 'Reset invite links')+'</button>' : '')
       +'<button type="button" class="ghost" data-lact="leave">'+(armed === id+':leave' ? 'Tap again to leave' : 'Leave')+'</button>'
       +(mine ? '<button type="button" class="ghost danger" data-lact="delete">'+(armed === id+':delete' ? 'Tap again to delete for everyone' : 'Delete queue')+'</button>' : '')
       +'</div></div>';
@@ -1195,13 +1201,13 @@ function attachList(id){
     if (!(d.members || []).includes(CLOUD.user.uid)){ dropList(id, 'You are no longer in “'+(d.name || 'a shared queue')+'”.'); return; }
     const L = LISTS[id] || (LISTS[id] = {id, rev:-1, queue:[]});
     const oldName = L.name;
-    L.name = d.name || 'Shared queue'; L.owner = d.owner; L.members = d.members; L.memberInfo = d.memberInfo || {};
+    L.name = d.name || 'Shared queue'; L.owner = d.owner; L.members = d.members; L.memberInfo = d.memberInfo || {}; L.inviteGen = d.inviteGen || 0;
     const changed = (d.rev || 0) !== L.rev;            // our own saves carry the rev we already hold
     if (changed){ L.queue = unpackQueue(d.queue || []); L.rev = d.rev || 0; if (ACTIVE === id) QUEUE = L.queue; }
     if (ACTIVE === 'me' && !L.shown && store.get('active', 'me') === id){ L.shown = true; setActive(id); return; }
     renderListBar();
     if (ACTIVE === id){ updateQueueUi(); if (changed || (oldName && oldName !== L.name)) refreshQueueViews(); }
-  }, err => { if (err && err.code === 'permission-denied') dropList(id, 'You can’t open that shared queue any more.'); });
+  }, err => { if (err && err.code === 'permission-denied') dropList(id, 'You are no longer in “'+((LISTS[id] && LISTS[id].name) || 'a shared queue')+'”. The creator may have removed you.'); });
 }
 function dropList(id, msg){
   if (LISTENERS[id]){ try{ LISTENERS[id](); }catch(e){} delete LISTENERS[id]; }
@@ -1211,6 +1217,7 @@ function dropList(id, msg){
   if (CLOUD.user && CLOUD.merged) pushLists();
 }
 function syncLists(ids){
+  ids = [...new Set(ids)];
   MYLISTS = ids.slice();
   ids.forEach(attachList);
   Object.keys(LISTENERS).forEach(id => {
@@ -1234,6 +1241,7 @@ function listPush(id){
   listTimers[id] = setTimeout(async () => {
     const L = LISTS[id];
     if (!L || !FB) return;
+    if (L.rev < 0){ listPush(id); return; }          // just joined: wait for the first copy so nothing is overwritten
     const rev = Date.now();
     try{
       L.rev = rev;
@@ -1244,23 +1252,46 @@ function listPush(id){
 }
 async function createList(name){
   const uid = CLOUD.user.uid, id = newListId(), now = Date.now();
-  const info = {[uid]:{n:acctName(CLOUD.user)}};
+  const info = {[uid]:{n:acctName(CLOUD.user).slice(0,40)}};
   try{
-    await FB.fs.setDoc(FB.fs.doc(FB.db, 'lists', id), {name, owner:uid, members:[uid], memberInfo:info, queue:[], rev:now, updated:now});
-  }catch(e){ listMsg('Could not create the shared queue. Check that the Firestore rules were updated.', 'err'); return; }
+    // The list and the per-account counter are written together, so the rules can cap how many queues one account creates.
+    const b = FB.fs.writeBatch(FB.db);
+    b.set(FB.fs.doc(FB.db, 'lists', id), {name, owner:uid, members:[uid], memberInfo:info, queue:[], inviteGen:0, rev:now, updated:now});
+    b.set(CLOUD.ref, {created: FB.fs.increment(1), lists: FB.fs.arrayUnion(id)}, {merge:true});
+    await b.commit();
+  }catch(e){ listMsg('Could not create the shared queue. Each account can create up to '+MAX_CREATED+' shared queues; if you are under that, check that the Firestore rules were updated.', 'err'); return; }
   LISTS[id] = {id, name, owner:uid, members:[uid], memberInfo:info, queue:[], rev:now, shown:true};
-  MYLISTS.push(id); attachList(id); setActive(id); pushLists();
+  if (!MYLISTS.includes(id)) MYLISTS.push(id); attachList(id); setActive(id); pushLists();
   listMsg('Created “'+name+'”. Choose Invite to add people.', 'ok');
 }
 async function shareInvite(id){
-  const L = LISTS[id]; if (!L) return;
-  const url = inviteLink(L.id), text = 'Join my shared queue “'+L.name+'” on Which Service';
+  const L = LISTS[id]; if (!L || !FB || !CLOUD.user) return;
+  const code = newListId(), exp = Date.now() + INVITE_DAYS*864e5 - 6e5;   // a little under 7 days, so a fast clock can't break the rule
+  try{
+    await FB.fs.setDoc(FB.fs.doc(FB.db, 'invites', code), {list:id, gen:L.inviteGen || 0, exp:FB.fs.Timestamp.fromMillis(exp), name:L.name.slice(0,40), by:acctName(CLOUD.user).slice(0,40)});
+  }catch(e){ listMsg('Could not make an invite link. Check that the Firestore rules were updated.', 'err'); return; }
+  const url = inviteLink(code), text = 'Join my shared queue “'+L.name+'” on Which Service';
+  const note = 'The link works for '+INVITE_DAYS+' days. Anyone with it can join once they sign in.'+(L.owner === CLOUD.user.uid ? ' Reset invite links cancels every link you have sent.' : '');
   if (navigator.share){
-    try{ await navigator.share({title:'Which Service', text, url}); return; }
+    try{ await navigator.share({title:'Which Service', text, url}); listMsg('Invite sent. '+note, 'ok'); return; }
     catch(e){ if (e && e.name === 'AbortError') return; }
   }
-  try{ await navigator.clipboard.writeText(url); listMsg('Invite link copied. Anyone you send it to can join once they sign in, so share it only with people you trust.', 'ok'); }
-  catch(e){ listMsg(url, 'ok'); }
+  try{ await navigator.clipboard.writeText(url); listMsg('Invite link copied. '+note, 'ok'); }
+  catch(e){ listMsg(url+' — '+note, 'ok'); }
+}
+async function resetInvites(id){
+  const L = LISTS[id]; if (!L || !CLOUD.user || L.owner !== CLOUD.user.uid) return;
+  try{ await FB.fs.updateDoc(FB.fs.doc(FB.db, 'lists', id), {inviteGen: FB.fs.increment(1)}); listMsg('Every invite link for “'+L.name+'” has stopped working. Members already in it stay.', 'ok'); }
+  catch(e){ listMsg('Could not reset the invite links. Try again.', 'err'); }
+}
+async function removeMember(id, u){
+  const L = LISTS[id]; if (!L || !CLOUD.user || L.owner !== CLOUD.user.uid || u === CLOUD.user.uid) return;
+  const who = (L.memberInfo && L.memberInfo[u] && L.memberInfo[u].n) || 'That member';
+  try{ await FB.fs.updateDoc(FB.fs.doc(FB.db, 'lists', id), {members: FB.fs.arrayRemove(u), ['memberInfo.'+u]: FB.fs.deleteField()}); }
+  catch(e){ listMsg('Could not remove '+who+'. Try again.', 'err'); return; }
+  // Cancel the links sent so far too, so the removed person can't come straight back with an old one.
+  try{ await FB.fs.updateDoc(FB.fs.doc(FB.db, 'lists', id), {inviteGen: FB.fs.increment(1)}); }catch(e){}
+  listMsg(who+' was removed from “'+L.name+'”. Old invite links were cancelled; send a new one to anyone who still needs to join.', 'ok');
 }
 async function renameList(id, name){
   const L = LISTS[id]; if (!L || !FB) return;
@@ -1293,48 +1324,50 @@ async function leaveList(id, newOwner){
 }
 // An invite link looks like #join=<id>. It is remembered so it survives signing in, even through a redirect.
 function routeJoin(){
-  const m = /^#join=([a-f0-9]{32})$/.exec(location.hash || '');
-  if (!m) return;
-  store.set('pendingJoin', m[1]);
+  const h = location.hash || '';
+  const m = /^#invite=([a-f0-9]{32})$/.exec(h), old = /^#join=/.test(h);
+  if (!m && !old) return;
   try{ history.replaceState(null, '', location.pathname + location.search); }catch(e){}
+  if (old){ showTab('queue'); joinCard('<p>That invite link is from an older version and no longer works. Ask for a new invite.</p>'); return; }
+  store.set('pendingJoin', m[1]);
   if (CLOUD.user && CLOUD.merged) processPendingJoin();
   else if (!store.get('cloudOn', false)){ showTab('account'); cloudMsg('Sign in to join the shared queue.', 'ok'); }
 }
 function processPendingJoin(){
-  const id = store.get('pendingJoin', '');
-  if (!isListId(id) || !CLOUD.user || !CLOUD.merged) return;
+  const code = store.get('pendingJoin', '');
+  if (!isListId(code) || !CLOUD.user || !CLOUD.merged) return;
   store.del('pendingJoin');
-  startJoin(id);
+  startJoin(code);
 }
-async function startJoin(id){
-  showTab('queue');
-  const card = $('joinCard');
-  if (MYLISTS.includes(id)){ card.hidden = true; setActive(id); return; }
-  card.hidden = false; card.innerHTML = '<p>Looking up the shared queue…</p>';
-  let d;
-  try{
-    const snap = await FB.fs.getDoc(FB.fs.doc(FB.db, 'lists', id));
-    if (!snap.exists()) throw new Error('gone');
-    d = snap.data();
-  }catch(e){
-    card.innerHTML = '<p>That invite link isn’t valid, or the shared queue was deleted.</p><div class="keyactions"><button type="button" class="ghost" id="joinNo">Close</button></div>';
-    $('joinNo').onclick = () => { card.hidden = true; };
-    return;
-  }
-  const names = Object.values(d.memberInfo || {}).map(m => m && m.n).filter(Boolean).join(', ');
-  card.innerHTML = '<h2>Join “'+esc(d.name || 'Shared queue')+'”?</h2>'
-    +'<p>'+(names ? 'Members: '+esc(names)+'. ' : '')+'Everyone in a shared queue can add, reorder and remove titles.</p>'
-    +'<div class="keyactions"><button type="button" class="primary syncbtn" id="joinYes">Join</button><button type="button" class="ghost" id="joinNo">No thanks</button></div>';
+function joinCard(html){
+  const card = $('joinCard'); card.hidden = false;
+  card.innerHTML = html + (/joinYes/.test(html) ? '' : '<div class="keyactions"><button type="button" class="ghost" id="joinNo">Close</button></div>');
   $('joinNo').onclick = () => { card.hidden = true; };
+}
+async function startJoin(code){
+  showTab('queue');
+  joinCard('<p>Looking up the invite…</p>');
+  let inv;
+  try{
+    const snap = await FB.fs.getDoc(FB.fs.doc(FB.db, 'invites', code));
+    if (!snap.exists()) throw new Error('gone');
+    inv = snap.data();
+  }catch(e){ joinCard('<p>That invite link isn’t valid. Ask for a new one.</p>'); return; }
+  const id = inv.list, expMs = inv.exp && inv.exp.toMillis ? inv.exp.toMillis() : 0;
+  if (!isListId(id)){ joinCard('<p>That invite link isn’t valid. Ask for a new one.</p>'); return; }
+  if (MYLISTS.includes(id)){ $('joinCard').hidden = true; setActive(id); return; }
+  if (expMs <= Date.now()){ joinCard('<p>That invite link has expired. Ask for a new one.</p>'); return; }
+  joinCard('<h2>Join “'+esc(inv.name || 'Shared queue')+'”?</h2>'
+    +'<p>'+(inv.by ? esc(inv.by)+' invited you. ' : '')+'Everyone in a shared queue can add, reorder and remove titles.</p>'
+    +'<div class="keyactions"><button type="button" class="primary syncbtn" id="joinYes">Join</button><button type="button" class="ghost" id="joinNo">No thanks</button></div>');
   $('joinYes').onclick = async () => {
-    const uid = CLOUD.user.uid;
+    const uid = CLOUD.user.uid, n = acctName(CLOUD.user).slice(0,40);
     try{
-      await FB.fs.updateDoc(FB.fs.doc(FB.db, 'lists', id), {members: FB.fs.arrayUnion(uid), ['memberInfo.'+uid]: {n:acctName(CLOUD.user)}});
-    }catch(e){ card.innerHTML = '<p>Could not join. You may need to ask for a fresh invite link.</p>'; return; }
-    LISTS[id] = {id, name:d.name || 'Shared queue', owner:d.owner, members:(d.members || []).concat(uid), memberInfo:Object.assign({}, d.memberInfo, {[uid]:{n:acctName(CLOUD.user)}}),
-      queue:unpackQueue(d.queue || []), rev:d.rev || 0, shown:true};
-    MYLISTS.push(id); attachList(id); setActive(id); pushLists();
-    card.hidden = true; listMsg('You joined “'+LISTS[id].name+'”.', 'ok');
+      await FB.fs.updateDoc(FB.fs.doc(FB.db, 'lists', id), {members: FB.fs.arrayUnion(uid), ['memberInfo.'+uid]: {n}, joinCode: code});
+    }catch(e){ joinCard('<p>Could not join. The link may have been reset by the creator, the queue may be full ('+MAX_MEMBERS+' people), or it was deleted. Ask for a new invite.</p>'); return; }
+    LISTS[id] = {id, name:inv.name || 'Shared queue', owner:'', members:[uid], memberInfo:{[uid]:{n}}, queue:[], rev:-1, shown:true};
+    if (!MYLISTS.includes(id)) MYLISTS.push(id); attachList(id); setActive(id); pushLists();
+    $('joinCard').hidden = true; listMsg('You joined “'+LISTS[id].name+'”.', 'ok');
   };
 }
 $('listChips').addEventListener('click', e => {
@@ -1361,8 +1394,11 @@ $('listInfo').addEventListener('click', e => {
   }
   if (act === 'invite'){ armed = ''; renderListBar(); shareInvite(id); return; }
   if (act === 'rename'){ armed = ''; renderListBar(); renameId = id; $('renameForm').hidden = false; $('renameName').value = L.name; $('renameName').focus(); $('renameName').select(); return; }
-  if (armed !== id+':'+act){ armed = id+':'+act; renderListBar(); return; }       // leave and delete both need a second tap
+  const tag = act === 'kick' ? id+':kick:'+b.getAttribute('data-uid') : id+':'+act;
+  if (armed !== tag){ armed = tag; renderListBar(); return; }       // leave, delete, reset and remove all need a second tap
   armed = '';
+  if (act === 'kick'){ removeMember(id, b.getAttribute('data-uid')); return; }
+  if (act === 'reset'){ resetInvites(id); renderListBar(); return; }
   if (act === 'leave') leaveList(id); else deleteList(id);
 });
 $('renameForm').addEventListener('submit', e => {

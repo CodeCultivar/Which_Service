@@ -56,7 +56,7 @@ python3 -m http.server
 - **Services tab:** the twelve services with logos, and what the lit, $ and dimmed marks mean.
 - **Sign in:** the button at the top right of every page opens the sign-in page. **Sign in with Google** keeps your queue the same on every device you sign in on, automatically. Once signed in, the button shows your first name, and its page has **Sign out**. Only the queue is stored (in a free Firebase project, under your Google account), never your TMDB key. It works from the web address, not from a file opened on your computer.
 - **Key box:** once a working key is saved, Settings shows only **Replace key**, **Remove key** and **Use sample data**. Choose **Replace key** to show the paste box again, or **Cancel** to hide it.
-- **Shared queues:** when you are signed in, the Queue tab has a row of queues to switch between: **My queue** and any shared queues. Managing them is on the **Settings** tab (the Queue tab links there with **Manage in Settings**): **+ New shared queue** makes one, and every shared queue you are in gets its own card there with its members and **Open**, **Invite**, **Rename**, **Leave** and **Delete queue**. **Invite** shares a link (or copies it). Whoever opens the link and signs in with Google can join. Everyone in a shared queue can add, reorder, mark watched and remove titles, and changes appear on everyone's screen within a few seconds. **Add to** on a search result adds to the queue you have selected, and **Add to my queue** copies a title from a shared queue into your own. **Rename** lets any member change the queue's name. **Leave** removes you (if you created the queue and others are in it, you first pick who takes over), and the last person to leave deletes the queue. Only the person who created a queue sees **Delete queue**, which deletes it for everyone after a second tap. Treat an invite link like a password: anyone who has it can join. If two people save at the same moment, the last save wins.
+- **Shared queues:** when you are signed in, the Queue tab has a row of queues to switch between: **My queue** and any shared queues. Managing them is on the **Settings** tab (the Queue tab links there with **Manage in Settings**): **+ New shared queue** makes one, and every shared queue you are in gets its own card there with its members and **Open**, **Invite**, **Rename**, **Leave** and **Delete queue**. **Invite** shares a link (or copies it) that works for 7 days. Whoever opens the link and signs in with Google can join. The creator can **Remove** a member (which also cancels old links) and **Reset invite links** at any time. Everyone in a shared queue can add, reorder, mark watched and remove titles, and changes appear on everyone's screen within a few seconds. **Add to** on a search result adds to the queue you have selected, and **Add to my queue** copies a title from a shared queue into your own. **Rename** lets any member change the queue's name. **Leave** removes you (if you created the queue and others are in it, you first pick who takes over), and the last person to leave deletes the queue. Only the person who created a queue sees **Delete queue**, which deletes it for everyone after a second tap. Treat an invite link like a password until it expires: anyone who has it can join. Invite links made before this change no longer work. If two people save at the same moment, the last save wins.
 - **My services:** in Settings, check or uncheck each of the twelve services. Unchecked ones are treated as not yours: they no longer count toward "on your services", the queue summary lines, or **Only show titles I can watch**, and they are dimmed on the Services tab. The choice is saved on the device, and in your account when signed in, so it follows you across devices.
 - **Collapsible rows:** each queued title is collapsed by default to its name, a short description and a line of the services that have it. Tap a row (title or poster) to open it and see the cast, the full service grid and the controls; tap again to close. **Expand all / Collapse all** above the queue does every row at once.
 - **Move to another queue:** open a title and tap **Move to…** to send it from your queue to a shared queue (or from a shared queue back to yours, or between shared queues). It leaves the current queue and joins the end of the other one's to-watch list, unwatched.
@@ -102,44 +102,147 @@ The published site is built by GitHub Actions (`.github/workflows/pages.yml`, `s
 
 ## Firestore rules
 
-Sync and shared queues need these rules in Firebase (Firestore Database, Rules, Publish):
+Sync, shared queues and the Admin page need these rules in Firebase (Firestore Database, Rules, Publish). The same text is in [`firestore.rules`](firestore.rules).
 
 ```
 rules_version = '2';
 service cloud.firestore {
   match /databases/{db}/documents {
-    function isOwner() {
-      return request.auth != null
+
+    function signedIn() {
+      return request.auth != null;
+    }
+    // The app owner's Google account. Used only by the Admin page to count accounts and shared queues.
+    function isAdmin() {
+      return signedIn()
         && request.auth.token.email == 'tjmaco@gmail.com'
         && request.auth.token.email_verified == true;
     }
+    function changed() {
+      return request.resource.data.diff(resource.data).affectedKeys();
+    }
+    function userDoc(uid) {
+      return /databases/$(db)/documents/users/$(uid);
+    }
+
+    // ---------- Your own document: personal queue, list of shared queues, services, counter ----------
+    function okUser(d) {
+      return (!('queue' in d) || (d.queue is list && d.queue.size() <= 500))
+        && (!('lists' in d) || (d.lists is list && d.lists.size() <= 60))
+        && (!('svcOff' in d) || (d.svcOff is list && d.svcOff.size() <= 20))
+        && (!('created' in d) || (d.created is int && d.created <= 50));
+    }
     match /users/{uid} {
-      allow read, write: if request.auth != null && request.auth.uid == uid;
-      allow list: if isOwner();
+      allow get: if signedIn() && request.auth.uid == uid;
+      allow list: if isAdmin();
+      allow create: if signedIn() && request.auth.uid == uid
+        && okUser(request.resource.data)
+        && request.resource.data.get('created', 0) <= 1;
+      allow update: if signedIn() && request.auth.uid == uid
+        && okUser(request.resource.data)
+        && changed().hasOnly(['queue', 'rev', 'updated', 'lists', 'svcOff', 'created'])
+        // the "queues created" counter can only go up, one at a time
+        && (request.resource.data.get('created', 0) == resource.data.get('created', 0)
+          || request.resource.data.get('created', 0) == resource.data.get('created', 0) + 1);
+    }
+
+    // ---------- Shared queues ----------
+    function okList(d) {
+      return d.name is string && d.name.size() >= 1 && d.name.size() <= 40
+        && d.members is list && d.members.size() >= 1 && d.members.size() <= 20
+        && d.owner in d.members
+        && d.memberInfo is map && d.memberInfo.size() <= 20
+        && d.queue is list && d.queue.size() <= 500;
+    }
+    function isMember() {
+      return request.auth.uid in resource.data.members;
+    }
+    // Any member: change the titles or the name, nothing else.
+    function memberEdit() {
+      return isMember() && changed().hasOnly(['queue', 'rev', 'updated', 'name']);
+    }
+    // Exactly one person leaves the member list, and their name goes with them.
+    function oneRemoved() {
+      return changed().hasOnly(['members', 'memberInfo'])
+        && resource.data.members.hasAll(request.resource.data.members)
+        && request.resource.data.members.size() == resource.data.members.size() - 1
+        && request.resource.data.memberInfo.diff(resource.data.memberInfo).addedKeys().size() == 0
+        && request.resource.data.memberInfo.diff(resource.data.memberInfo).changedKeys().size() == 0
+        && request.resource.data.memberInfo.keys().hasOnly(request.resource.data.members);
+    }
+    // A member leaves (removes only themselves), or the creator removes someone else.
+    function removal() {
+      return isMember() && oneRemoved()
+        && (!(request.auth.uid in request.resource.data.members) || resource.data.owner == request.auth.uid);
+    }
+    // The creator hands the queue to another member and leaves in the same step.
+    function handover() {
+      return resource.data.owner == request.auth.uid
+        && changed().hasOnly(['owner', 'members', 'memberInfo'])
+        && request.resource.data.owner != request.auth.uid
+        && request.resource.data.owner in resource.data.members
+        && request.resource.data.members == resource.data.members.removeAll([request.auth.uid])
+        && request.resource.data.memberInfo.keys().hasOnly(request.resource.data.members);
+    }
+    // The creator cancels every invite link sent so far.
+    function resetLinks() {
+      return resource.data.owner == request.auth.uid
+        && changed().hasOnly(['inviteGen'])
+        && request.resource.data.inviteGen == resource.data.get('inviteGen', 0) + 1;
+    }
+    // Someone with a live invite adds only themselves.
+    function joinWithInvite(listId) {
+      let inv = get(/databases/$(db)/documents/invites/$(request.resource.data.joinCode)).data;
+      return !isMember()
+        && changed().hasOnly(['members', 'memberInfo', 'joinCode'])
+        && request.resource.data.members == resource.data.members.concat([request.auth.uid])
+        && request.resource.data.memberInfo.diff(resource.data.memberInfo).affectedKeys().hasOnly([request.auth.uid])
+        && request.resource.data.memberInfo[request.auth.uid].n is string
+        && request.resource.data.memberInfo[request.auth.uid].n.size() <= 40
+        && inv.list == listId
+        && inv.gen == resource.data.get('inviteGen', 0)
+        && inv.exp > request.time;
     }
     match /lists/{listId} {
-      allow get: if request.auth != null;
-      allow list: if isOwner();
-      allow create: if request.auth != null
+      // Members only. Reading a queue that no longer exists is allowed, so the app can tell it was deleted.
+      allow get: if signedIn() && (resource == null || isMember());
+      allow list: if isAdmin();
+      // Created together with your counter going up by one (at most 50 per account).
+      allow create: if signedIn()
         && request.resource.data.owner == request.auth.uid
-        && request.resource.data.members == [request.auth.uid];
-      allow update: if request.auth != null && (
-        (request.auth.uid in resource.data.members
-          && (request.resource.data.owner == resource.data.owner
-            || (resource.data.owner == request.auth.uid
-              && request.resource.data.owner in request.resource.data.members)))
-        || (request.resource.data.diff(resource.data).affectedKeys().hasOnly(['members', 'memberInfo'])
-          && request.auth.uid in request.resource.data.members
-          && request.resource.data.members.hasAll(resource.data.members)
-          && request.resource.data.members.size() == resource.data.members.size() + 1)
-      );
-      allow delete: if request.auth != null && resource.data.owner == request.auth.uid;
+        && request.resource.data.members == [request.auth.uid]
+        && request.resource.data.get('inviteGen', 0) == 0
+        && okList(request.resource.data)
+        && getAfter(userDoc(request.auth.uid)).data.get('created', 0)
+          == (exists(userDoc(request.auth.uid)) ? get(userDoc(request.auth.uid)).data.get('created', 0) : 0) + 1;
+      allow update: if signedIn() && okList(request.resource.data)
+        && (memberEdit() || removal() || handover() || resetLinks() || joinWithInvite(listId));
+      allow delete: if signedIn() && resource.data.owner == request.auth.uid;
+    }
+
+    // ---------- Invite links: made by a member, good for 7 days, cancelled by Reset invite links ----------
+    match /invites/{code} {
+      allow get: if signedIn();
+      allow create: if signedIn()
+        && request.resource.data.keys().hasOnly(['list', 'gen', 'exp', 'name', 'by'])
+        && request.resource.data.list is string
+        && request.auth.uid in get(/databases/$(db)/documents/lists/$(request.resource.data.list)).data.members
+        && request.resource.data.gen == get(/databases/$(db)/documents/lists/$(request.resource.data.list)).data.get('inviteGen', 0)
+        && request.resource.data.exp is timestamp
+        && request.resource.data.exp <= request.time + duration.value(7, 'd')
+        && request.resource.data.name is string && request.resource.data.name.size() <= 40
+        && request.resource.data.by is string && request.resource.data.by.size() <= 40;
     }
   }
 }
 ```
 
-A shared queue's address is a random 32-character id, and the rules do not let anyone list queues except the owner's Google account (used only by the Admin page to count them). Only people who have the id (the invite link) can open one, and only members can change it.
+What the rules enforce:
+
+- **Shared queues are members-only.** Only members can read one (the owner's Google account can also count them for the Admin page).
+- **Invite links expire and can be cancelled.** Invite makes a separate one-off code good for 7 days. Joining requires a live code for that queue. The creator's **Reset invite links** cancels every link sent so far, and removing a member does that automatically.
+- **Members can only change the titles and the name.** Joining adds only yourself, leaving removes only yourself, only the creator can remove someone else, hand the queue over, reset links or delete it.
+- **Limits:** queue names up to 40 characters, up to 500 titles in a queue, up to 20 people in a shared queue, and up to 50 shared queues created per account (a counter on your account that can only go up).
 
 ## Admin page
 
