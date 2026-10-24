@@ -22,8 +22,6 @@ for (const { name, required, why } of KEYS) {
   html = html.split(token).join(value);
   console.log('Filled in ' + name + ' (' + value.length + ' characters).');
 }
-const sha = (process.env.GITHUB_SHA || '').slice(0, 7) || 'local';
-html = html.split('__BUILD__').join(sha + ' ' + new Date().toISOString().slice(0, 16).replace('T', ' ') + ' UTC');
 if (failed) process.exit(1);
 
 rmSync('dist', { recursive: true, force: true });

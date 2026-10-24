@@ -218,6 +218,13 @@ a.ci:hover .svc{text-decoration:underline}
 .keyrow{display:flex;flex-wrap:wrap;gap:8px}
 .keyrow input{flex:1 1 220px;min-width:0;background:var(--bg);border:1px solid var(--line);border-radius:12px;padding:12px 14px}
 .keyrow .primary{padding:12px 20px;border-radius:12px}
+.cloudbar{display:flex;flex-wrap:wrap;align-items:center;gap:10px 16px;background:var(--surface);border:1px solid var(--line);border-radius:16px;padding:12px 16px}
+.cloudtext{margin:0;flex:1 1 220px;display:flex;align-items:center;gap:10px;font-weight:600;min-width:0}
+.cloudtext .badge{position:static;flex:none}
+.cloudtext[hidden]{display:none}
+.cloudbtns{display:flex;gap:10px}
+.cloudbtns .ghost{min-height:48px;padding:0 18px;border-radius:14px;font-weight:700}
+.cloudbar .keymsg{flex-basis:100%}
 .syncbtn{min-height:48px;padding:0 22px;border-radius:14px}
 .keysaved{display:flex;align-items:center;gap:10px;margin:0;font-weight:600}
 .keysaved[hidden]{display:none}
@@ -282,11 +289,21 @@ footer{color:var(--muted);font-size:.8rem;display:flex;flex-direction:column;gap
   <div class="pane" id="paneSearch" role="tabpanel" aria-labelledby="tabSearch">
     <form class="search" id="searchForm" role="search">
       <label class="sr" for="q">Search movies and shows</label>
-      <input id="q" type="search" placeholder="Movie or show" autocomplete="off" enterkeyhint="search">
+      <input id="q" type="search" placeholder="Movie or TV" autocomplete="off" enterkeyhint="search">
       <button type="submit" class="primary">Search</button>
       <button type="button" class="reset" id="resetBtn">Reset</button>
     </form>
     <p class="status" id="status" role="status" aria-live="polite"></p>
+
+    <section class="cloudbar" aria-label="Sync between devices">
+      <p class="cloudtext" id="cloudIntro">Sign in to keep your queue the same on all your devices.</p>
+      <p class="cloudtext" id="cloudUser" hidden><span class="badge in" aria-hidden="true">&#10003;</span> <span id="cloudWho"></span></p>
+      <div class="cloudbtns">
+        <button type="button" class="primary syncbtn" id="cloudIn">Sign in with Google</button>
+        <button type="button" class="ghost" id="cloudOut" hidden>Sign out</button>
+      </div>
+      <p class="keymsg" id="cloudMsg" role="status" aria-live="polite"></p>
+    </section>
 
 
     <div class="banner" id="banner" hidden>
@@ -361,22 +378,11 @@ footer{color:var(--muted);font-size:.8rem;display:flex;flex-direction:column;gap
       </div>
     </section>
 
-    <section class="card" aria-labelledby="syncHead">
-      <h2 id="syncHead">Sync between devices</h2>
-      <p id="cloudIntro">Sign in with Google and your queue stays the same on every device you sign in on. Only your queue is stored, tied to your Google account. Your TMDB key is never synced.</p>
-      <p class="keysaved" id="cloudUser" hidden><span class="badge in" aria-hidden="true">&#10003;</span> <span id="cloudWho"></span></p>
-      <div class="keyactions">
-        <button type="button" class="primary syncbtn" id="cloudIn">Sign in with Google</button>
-        <button type="button" class="ghost" id="cloudOut" hidden>Sign out</button>
-      </div>
-      <p class="keymsg" id="cloudMsg" role="status" aria-live="polite"></p>
-    </section>
   </div>
 
   <footer>
     <span>Streaming availability data from JustWatch, provided through TMDB. Service logos from TMDB.</span>
     <span>This product uses the TMDB API but is not endorsed or certified by TMDB.</span>
-    <span id="buildStamp">Build: __BUILD__</span>
   </footer>
 </div>
 
@@ -804,7 +810,7 @@ function cloudUi(){
   const u = CLOUD.user;
   $('cloudUser').hidden = !u; $('cloudOut').hidden = !u; $('cloudIn').hidden = !!u;
   $('cloudIntro').hidden = !!u;
-  if (u) $('cloudWho').textContent = 'Signed in as '+(u.email || u.displayName || 'your Google account')+'. Your queue syncs automatically.';
+  if (u) $('cloudWho').textContent = 'Synced as '+(u.email || u.displayName || 'your Google account');
 }
 // Titles on either side are kept. Remote order first, then titles only this device had. Watched on either side stays watched.
 function mergeQueues(remote, local){
@@ -1224,7 +1230,6 @@ $('useSample').addEventListener('click', () => { enterSample(); showTab('search'
 /* ---------- Boot ---------- */
 renderServices();
 refreshKeyUi();
-(function(){ const el = $('buildStamp'), t = el.textContent.replace('Build: ',''); if (/^__/.test(t)) el.textContent = 'Build: local copy'; })();
 updateQueueUi();
 cloudUi();
 cloudBoot();
