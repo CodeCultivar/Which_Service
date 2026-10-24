@@ -1364,7 +1364,18 @@ async function startJoin(code){
     const uid = CLOUD.user.uid, n = acctName(CLOUD.user).slice(0,40);
     try{
       await FB.fs.updateDoc(FB.fs.doc(FB.db, 'lists', id), {members: FB.fs.arrayUnion(uid), ['memberInfo.'+uid]: {n}, joinCode: code});
-    }catch(e){ joinCard('<p>Could not join. The link may have been reset by the creator, the queue may be full ('+MAX_MEMBERS+' people), or it was deleted. Ask for a new invite.</p>'); return; }
+    }catch(e){
+      // Already a member (for example the list of queues hadn't loaded yet)? Then just open it instead of showing an error.
+      try{
+        const ls = await FB.fs.getDoc(FB.fs.doc(FB.db, 'lists', id));
+        if (ls.exists() && (ls.data().members || []).includes(uid)){
+          if (!MYLISTS.includes(id)) MYLISTS.push(id);
+          attachList(id); pushLists(); $('joinCard').hidden = true; setActive(id);
+          listMsg('You are already in “'+(ls.data().name || 'this shared queue')+'”.', 'ok'); return;
+        }
+      }catch(e2){}
+      joinCard('<p>Could not join. The link may have been reset by the creator, the queue may be full ('+MAX_MEMBERS+' people), or it was deleted. Ask for a new invite.</p>'); return;
+    }
     LISTS[id] = {id, name:inv.name || 'Shared queue', owner:'', members:[uid], memberInfo:{[uid]:{n}}, queue:[], rev:-1, shown:true};
     if (!MYLISTS.includes(id)) MYLISTS.push(id); attachList(id); setActive(id); pushLists();
     $('joinCard').hidden = true; listMsg('You joined “'+LISTS[id].name+'”.', 'ok');
