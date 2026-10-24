@@ -249,6 +249,7 @@ a.ci:hover .svc{text-decoration:underline}
 .chip.add{border-style:dashed;color:var(--muted)}
 .newlist{display:flex;flex-wrap:wrap;gap:8px}
 .newlist[hidden],.listinfo[hidden]{display:none}
+.keyactions .danger{color:var(--danger)}
 .newlist input{flex:1 1 200px;min-width:0;height:48px;background:var(--surface);color:var(--ink);border:2px solid var(--line);border-radius:12px;padding:0 14px;font-size:1rem}
 .newlist input:focus-visible{border-color:var(--focus);outline:none}
 .newlist .primary,.newlist .ghost{min-height:48px;padding:0 20px;border-radius:12px}
@@ -362,6 +363,12 @@ footer{color:var(--muted);font-size:.8rem;display:flex;flex-direction:column;gap
         <button type="button" class="ghost" id="newListCancel">Cancel</button>
       </form>
       <div class="listinfo" id="listInfo" hidden></div>
+      <form class="newlist" id="renameForm" hidden>
+        <label class="sr" for="renameName">New name for the shared queue</label>
+        <input id="renameName" maxlength="40" autocomplete="off" enterkeyhint="done">
+        <button type="submit" class="primary">Save name</button>
+        <button type="button" class="ghost" id="renameCancel">Cancel</button>
+      </form>
       <p class="keymsg" id="listMsg" role="status" aria-live="polite"></p>
     </section>
     <section class="card" id="joinCard" hidden aria-live="polite"></section>
@@ -990,13 +997,13 @@ async function cloudBoot(){
 const isListId = x => typeof x === 'string' && /^[a-f0-9]{32}$/.test(x);
 const newListId = () => { const a = new Uint8Array(16); crypto.getRandomValues(a); return Array.from(a, b => b.toString(16).padStart(2,'0')).join(''); };
 const LISTENERS = {}, listTimers = {};
-let leaveArmed = '';
+let armed = '';   // which two-step button is waiting for a second tap: 'leave' or 'delete'
 const listMsg = (t, kind) => { const m = $('listMsg'); m.textContent = t; m.className = 'keymsg' + (kind ? ' '+kind : ''); };
 const inviteLink = id => location.origin + location.pathname + '#join=' + id;
 
 function setActive(id){
   if (id !== 'me' && !LISTS[id]) id = 'me';
-  ACTIVE = id; leaveArmed = ''; store.set('active', id);
+  ACTIVE = id; armed = ''; $('renameForm').hidden = true; store.set('active', id);
   QUEUE = id === 'me' ? PERSONAL : (LISTS[id].queue || []);
   queueRows = new Map();
   renderListBar(); updateQueueUi(); refreshQueueViews();
@@ -1016,21 +1023,25 @@ function renderListBar(){
   info.hidden = false;
   info.innerHTML = '<p class="members"><strong>'+esc(L.name)+'</strong><span>Members: '+esc(names)+'</span></p>'
     +'<div class="keyactions"><button type="button" class="ghost" data-lact="invite">Invite</button>'
-    +'<button type="button" class="ghost" data-lact="leave">'+(leaveArmed === L.id ? 'Tap again to leave' : 'Leave')+'</button></div>';
+    +'<button type="button" class="ghost" data-lact="rename">Rename</button>'
+    +'<button type="button" class="ghost" data-lact="leave">'+(armed === 'leave' ? 'Tap again to leave' : 'Leave')+'</button>'
+    +(L.owner === me ? '<button type="button" class="ghost danger" data-lact="delete">'+(armed === 'delete' ? 'Tap again to delete for everyone' : 'Delete queue')+'</button>' : '')
+    +'</div>';
 }
 function attachList(id){
   if (LISTENERS[id] || !FB || !CLOUD.user) return;
   LISTENERS[id] = FB.fs.onSnapshot(FB.fs.doc(FB.db, 'lists', id), snap => {
-    if (!snap.exists()){ dropList(id, 'A shared queue you were in was deleted.'); return; }
+    if (!snap.exists()){ dropList(id, '“'+((LISTS[id] && LISTS[id].name) || 'A shared queue')+'” was deleted by its creator.'); return; }
     const d = snap.data();
     if (!(d.members || []).includes(CLOUD.user.uid)){ dropList(id, 'You are no longer in “'+(d.name || 'a shared queue')+'”.'); return; }
     const L = LISTS[id] || (LISTS[id] = {id, rev:-1, queue:[]});
+    const oldName = L.name;
     L.name = d.name || 'Shared queue'; L.owner = d.owner; L.members = d.members; L.memberInfo = d.memberInfo || {};
     const changed = (d.rev || 0) !== L.rev;            // our own saves carry the rev we already hold
     if (changed){ L.queue = unpackQueue(d.queue || []); L.rev = d.rev || 0; if (ACTIVE === id) QUEUE = L.queue; }
     if (ACTIVE === 'me' && !L.shown && store.get('active', 'me') === id){ L.shown = true; setActive(id); return; }
     renderListBar();
-    if (ACTIVE === id){ updateQueueUi(); if (changed) refreshQueueViews(); }
+    if (ACTIVE === id){ updateQueueUi(); if (changed || (oldName && oldName !== L.name)) refreshQueueViews(); }
   }, err => { if (err && err.code === 'permission-denied') dropList(id, 'You can’t open that shared queue any more.'); });
 }
 function dropList(id, msg){
@@ -1091,6 +1102,18 @@ async function shareInvite(){
   }
   try{ await navigator.clipboard.writeText(url); listMsg('Invite link copied. Anyone you send it to can join once they sign in, so share it only with people you trust.', 'ok'); }
   catch(e){ listMsg(url, 'ok'); }
+}
+async function renameList(id, name){
+  const L = LISTS[id]; if (!L || !FB) return;
+  try{ await FB.fs.updateDoc(FB.fs.doc(FB.db, 'lists', id), {name}); listMsg('Renamed to “'+name+'”.', 'ok'); }
+  catch(e){ listMsg('Could not rename right now. Try again.', 'err'); }
+}
+async function deleteList(id){
+  const L = LISTS[id]; if (!L || !CLOUD.user || L.owner !== CLOUD.user.uid) return;
+  const name = L.name;
+  try{ await FB.fs.deleteDoc(FB.fs.doc(FB.db, 'lists', id)); }
+  catch(e){ listMsg('Could not delete the shared queue. Only the person who created it can.', 'err'); return; }
+  dropList(id, ''); listMsg('Deleted “'+name+'” for everyone.', 'ok');
 }
 async function leaveList(id){
   const L = LISTS[id]; if (!L || !CLOUD.user) return;
@@ -1156,10 +1179,21 @@ $('listChips').addEventListener('click', e => {
 });
 $('listInfo').addEventListener('click', e => {
   const b = e.target.closest && e.target.closest('[data-lact]'); if (!b) return;
-  if (b.getAttribute('data-lact') === 'invite'){ shareInvite(); return; }
-  if (leaveArmed !== ACTIVE){ leaveArmed = ACTIVE; renderListBar(); return; }
-  leaveArmed = ''; leaveList(ACTIVE);
+  const act = b.getAttribute('data-lact'), L = LISTS[ACTIVE];
+  if (!L) return;
+  if (act === 'invite'){ armed = ''; shareInvite(); return; }
+  if (act === 'rename'){ armed = ''; renderListBar(); $('renameForm').hidden = false; $('renameName').value = L.name; $('renameName').focus(); $('renameName').select(); return; }
+  if (armed !== act){ armed = act; renderListBar(); return; }       // leave and delete both need a second tap
+  armed = '';
+  if (act === 'leave') leaveList(ACTIVE); else deleteList(ACTIVE);
 });
+$('renameForm').addEventListener('submit', e => {
+  e.preventDefault();
+  const name = $('renameName').value.trim().slice(0, 40);
+  $('renameForm').hidden = true;
+  if (name && LISTS[ACTIVE] && name !== LISTS[ACTIVE].name) renameList(ACTIVE, name);
+});
+$('renameCancel').addEventListener('click', () => { $('renameForm').hidden = true; });
 $('newListForm').addEventListener('submit', e => {
   e.preventDefault();
   const name = $('newListName').value.trim().slice(0, 40);
