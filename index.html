@@ -276,7 +276,9 @@ a.ci:hover .svc{text-decoration:underline}
 .newlist input:focus-visible{border-color:var(--focus);outline:none}
 .newlist .primary,.newlist .ghost{min-height:48px;padding:0 20px;border-radius:12px}
 .listbrief{margin:0;color:var(--muted);font-size:.95rem;overflow-wrap:anywhere}.listbrief .linkbtn{min-height:44px;padding:0 6px}
-.listinfo{display:flex;flex-direction:column;gap:10px;background:var(--surface);border:1px solid var(--line);border-radius:16px;padding:14px 16px}
+.listinfo{display:flex;flex-direction:column;gap:12px}
+.lcard{display:flex;flex-direction:column;gap:10px;background:var(--surface);border:1px solid var(--line);border-radius:16px;padding:14px 16px}
+.lcard.cur{border-color:var(--accent)}
 .listinfo .members{margin:0;display:flex;flex-direction:column;gap:2px;overflow-wrap:anywhere}
 .listinfo .members span{color:var(--muted);font-size:.95rem}
 .syncbtn{min-height:48px;padding:0 22px;border-radius:14px}
@@ -417,7 +419,7 @@ footer{color:var(--muted);font-size:.8rem;display:flex;flex-direction:column;gap
   <div class="pane" id="paneSettings" role="tabpanel" aria-labelledby="tabSettings" hidden>
     <section class="card" id="sharedCard" aria-labelledby="sharedHead">
       <h2 id="sharedHead">Shared queues</h2>
-      <p id="sharedHint">Choose a shared queue on the Queue tab to invite people, rename it or leave it here.</p>
+      <p id="sharedHint">You are not in any shared queues yet. Create one to share titles with other people, or open an invite link.</p>
       <div class="keyactions"><button type="button" class="ghost" id="newListSet" hidden>+ New shared queue</button><button type="button" class="ghost" id="listSignInSet" hidden>Sign in to share queues</button></div>
       <form class="newlist" id="newListForm" hidden>
         <label class="sr" for="newListName">Name for the shared queue</label>
@@ -1118,14 +1120,15 @@ async function cloudBoot(){
 const isListId = x => typeof x === 'string' && /^[a-f0-9]{32}$/.test(x);
 const newListId = () => { const a = new Uint8Array(16); crypto.getRandomValues(a); return Array.from(a, b => b.toString(16).padStart(2,'0')).join(''); };
 const LISTENERS = {}, listTimers = {};
-let picking = false;   // the creator is choosing who takes over before leaving
-let armed = '';   // which two-step button is waiting for a second tap: 'leave' or 'delete'
+let picking = '';   // id of the queue whose creator is choosing who takes over; ''=none  // the creator is choosing who takes over before leaving
+let armed = '';   // the two-step button waiting for a second tap: '<queue id>:leave' or '<queue id>:delete'
+let renameId = '';
 const listMsg = (t, kind) => { ['listMsg','listMsgQ'].forEach(id => { const m = $(id); m.textContent = t; m.className = 'keymsg' + (kind ? ' '+kind : ''); }); };
 const inviteLink = id => location.origin + location.pathname + '#join=' + id;
 
 function setActive(id){
   if (id !== 'me' && !LISTS[id]) id = 'me';
-  ACTIVE = id; armed = ''; picking = false; MOVING = ''; $('renameForm').hidden = true; store.set('active', id);
+  ACTIVE = id; armed = ''; picking = ''; MOVING = ''; $('renameForm').hidden = true; store.set('active', id);
   QUEUE = id === 'me' ? PERSONAL : (LISTS[id].queue || []);
   queueRows = new Map();
   renderListBar(); updateQueueUi(); refreshQueueViews();
@@ -1139,28 +1142,30 @@ function renderListBar(){
               : '<button type="button" class="chip add" id="listSignIn">Sign in to share queues</button>';
   $('listChips').innerHTML = h;
   $('newListSet').hidden = !signed; $('listSignInSet').hidden = signed;
-  const info = $('listInfo'), L = ACTIVE === 'me' ? null : LISTS[ACTIVE];
-  $('sharedHint').hidden = !!L;
-  $('listBrief').hidden = !L;
-  if (!L){ info.hidden = true; info.innerHTML = ''; return; }
-  { const me0 = CLOUD.user && CLOUD.user.uid;
-    $('listBriefText').textContent = 'Members: '+(L.members || []).map(u => u === me0 ? 'You' : ((L.memberInfo && L.memberInfo[u] && L.memberInfo[u].n) || 'Someone')).join(', ')+'.'; }
-  const me = CLOUD.user && CLOUD.user.uid;
-  const names = (L.members || []).map(u => u === me ? 'You' : ((L.memberInfo && L.memberInfo[u] && L.memberInfo[u].n) || 'Someone')).join(', ');
-  info.hidden = false;
-  if (picking && L.owner === me){
-    const others = (L.members || []).filter(u => u !== me);
-    info.innerHTML = '<p class="members"><strong>Choose who takes over</strong><span>You created “'+esc(L.name)+'”. Pick a member to become its new owner, then you will leave. The new owner is the only one who can delete it.</span></p>'
-      +'<div class="keyactions">'+others.map(u => '<button type="button" class="ghost" data-newowner="'+esc(u)+'">'+esc((L.memberInfo && L.memberInfo[u] && L.memberInfo[u].n) || 'Someone')+'</button>').join('')
-      +'<button type="button" class="ghost" data-lact="cancelpick">Cancel</button></div>';
-    return;
-  }
-  info.innerHTML = '<p class="members"><strong>'+esc(L.name)+'</strong><span>Members: '+esc(names)+'</span></p>'
-    +'<div class="keyactions"><button type="button" class="ghost" data-lact="invite">Invite</button>'
-    +'<button type="button" class="ghost" data-lact="rename">Rename</button>'
-    +'<button type="button" class="ghost" data-lact="leave">'+(armed === 'leave' ? 'Tap again to leave' : 'Leave')+'</button>'
-    +(L.owner === me ? '<button type="button" class="ghost danger" data-lact="delete">'+(armed === 'delete' ? 'Tap again to delete for everyone' : 'Delete queue')+'</button>' : '')
-    +'</div>';
+  const info = $('listInfo'), cur = ACTIVE === 'me' ? null : LISTS[ACTIVE], me = CLOUD.user && CLOUD.user.uid;
+  const nameOf = (L, u) => u === me ? 'You' : ((L.memberInfo && L.memberInfo[u] && L.memberInfo[u].n) || 'Someone');
+  $('listBrief').hidden = !cur;
+  if (cur) $('listBriefText').textContent = 'Members: '+(cur.members || []).map(u => nameOf(cur, u)).join(', ')+'.';
+  const have = MYLISTS.filter(id => LISTS[id]);
+  $('sharedHint').hidden = !!have.length;
+  info.hidden = !have.length;
+  info.innerHTML = have.map(id => {
+    const L = LISTS[id], mine = L.owner === me;
+    const head = '<p class="members"><strong>'+esc(L.name)+(id === ACTIVE ? ' (shown on the Queue tab)' : '')+'</strong>';
+    if (picking === id && mine){
+      const others = (L.members || []).filter(u => u !== me);
+      return '<div class="lcard'+(id === ACTIVE ? ' cur' : '')+'" data-lid="'+id+'">'+head+'<span>Choose who takes over. Pick a member to become the new owner of “'+esc(L.name)+'”, then you will leave. The new owner is the only one who can delete it.</span></p>'
+        +'<div class="keyactions">'+others.map(u => '<button type="button" class="ghost" data-newowner="'+esc(u)+'">'+esc(nameOf(L, u))+'</button>').join('')
+        +'<button type="button" class="ghost" data-lact="cancelpick">Cancel</button></div></div>';
+    }
+    return '<div class="lcard'+(id === ACTIVE ? ' cur' : '')+'" data-lid="'+id+'">'+head+'<span>Members: '+esc((L.members || []).map(u => nameOf(L, u)).join(', '))+'</span></p>'
+      +'<div class="keyactions"><button type="button" class="ghost" data-lact="open">Open</button>'
+      +'<button type="button" class="ghost" data-lact="invite">Invite</button>'
+      +'<button type="button" class="ghost" data-lact="rename">Rename</button>'
+      +'<button type="button" class="ghost" data-lact="leave">'+(armed === id+':leave' ? 'Tap again to leave' : 'Leave')+'</button>'
+      +(mine ? '<button type="button" class="ghost danger" data-lact="delete">'+(armed === id+':delete' ? 'Tap again to delete for everyone' : 'Delete queue')+'</button>' : '')
+      +'</div></div>';
+  }).join('');
 }
 function attachList(id){
   if (LISTENERS[id] || !FB || !CLOUD.user) return;
@@ -1227,8 +1232,8 @@ async function createList(name){
   MYLISTS.push(id); attachList(id); setActive(id); pushLists();
   listMsg('Created “'+name+'”. Choose Invite to add people.', 'ok');
 }
-async function shareInvite(){
-  const L = LISTS[ACTIVE]; if (!L) return;
+async function shareInvite(id){
+  const L = LISTS[id]; if (!L) return;
   const url = inviteLink(L.id), text = 'Join my shared queue “'+L.name+'” on Which Service';
   if (navigator.share){
     try{ await navigator.share({title:'Which Service', text, url}); return; }
@@ -1253,7 +1258,7 @@ async function leaveList(id, newOwner){
   const L = LISTS[id]; if (!L || !CLOUD.user) return;
   const uid = CLOUD.user.uid, ref = FB.fs.doc(FB.db, 'lists', id);
   const others = (L.members || []).filter(u => u !== uid);
-  if (L.owner === uid && others.length && !others.includes(newOwner)){ picking = true; renderListBar(); return; }
+  if (L.owner === uid && others.length && !others.includes(newOwner)){ picking = id; renderListBar(); return; }
   try{
     if (L.owner === uid && !others.length) await FB.fs.deleteDoc(ref);
     else{
@@ -1322,26 +1327,29 @@ $('manageList').addEventListener('click', () => { showTab('settings'); $('shared
 $('newListSet').addEventListener('click', () => { $('newListForm').hidden = false; $('newListName').focus(); });
 $('listSignInSet').addEventListener('click', () => showTab('account'));
 $('listInfo').addEventListener('click', e => {
-  const nb = e.target.closest && e.target.closest('[data-newowner]');
-  if (nb){ picking = false; leaveList(ACTIVE, nb.getAttribute('data-newowner')); return; }
-  const b = e.target.closest && e.target.closest('[data-lact]'); if (!b) return;
-  const act = b.getAttribute('data-lact'), L = LISTS[ACTIVE];
+  const card = e.target.closest && e.target.closest('[data-lid]'); if (!card) return;
+  const id = card.getAttribute('data-lid'), L = LISTS[id];
   if (!L) return;
-  if (act === 'cancelpick'){ picking = false; renderListBar(); return; }
+  const nb = e.target.closest('[data-newowner]');
+  if (nb){ picking = ''; leaveList(id, nb.getAttribute('data-newowner')); return; }
+  const b = e.target.closest('[data-lact]'); if (!b) return;
+  const act = b.getAttribute('data-lact');
+  if (act === 'cancelpick'){ picking = ''; renderListBar(); return; }
+  if (act === 'open'){ armed = ''; setActive(id); showTab('queue'); return; }
   if (act === 'leave' && CLOUD.user && L.owner === CLOUD.user.uid && (L.members || []).length > 1){   // the creator must hand over first
-    armed = ''; picking = true; renderListBar(); return;
+    armed = ''; picking = id; renderListBar(); return;
   }
-  if (act === 'invite'){ armed = ''; shareInvite(); return; }
-  if (act === 'rename'){ armed = ''; renderListBar(); $('renameForm').hidden = false; $('renameName').value = L.name; $('renameName').focus(); $('renameName').select(); return; }
-  if (armed !== act){ armed = act; renderListBar(); return; }       // leave and delete both need a second tap
+  if (act === 'invite'){ armed = ''; renderListBar(); shareInvite(id); return; }
+  if (act === 'rename'){ armed = ''; renderListBar(); renameId = id; $('renameForm').hidden = false; $('renameName').value = L.name; $('renameName').focus(); $('renameName').select(); return; }
+  if (armed !== id+':'+act){ armed = id+':'+act; renderListBar(); return; }       // leave and delete both need a second tap
   armed = '';
-  if (act === 'leave') leaveList(ACTIVE); else deleteList(ACTIVE);
+  if (act === 'leave') leaveList(id); else deleteList(id);
 });
 $('renameForm').addEventListener('submit', e => {
   e.preventDefault();
-  const name = $('renameName').value.trim().slice(0, 40);
+  const name = $('renameName').value.trim().slice(0, 40), id = renameId;
   $('renameForm').hidden = true;
-  if (name && LISTS[ACTIVE] && name !== LISTS[ACTIVE].name) renameList(ACTIVE, name);
+  if (name && LISTS[id] && name !== LISTS[id].name) renameList(id, name);
 });
 $('renameCancel').addEventListener('click', () => { $('renameForm').hidden = true; });
 $('newListForm').addEventListener('submit', e => {
