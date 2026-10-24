@@ -77,6 +77,21 @@ The hosted page is the same code for everyone: each visitor pastes their own TMD
 | `assets/apple-touch-icon.png` | 180px icon used when the page is added to an iPhone or iPad home screen. |
 | `docs/screenshot.png` | The screenshot above. |
 
+## Keys and the build
+
+The published site is built by GitHub Actions (`.github/workflows/pages.yml`, `scripts/build.mjs`). The build copies `index.html` and `assets/` into `dist/` and fills in two placeholders from repository secrets:
+
+| Secret | Fills in | Needed |
+| --- | --- | --- |
+| `FIREBASE_API_KEY` | `__FIREBASE_API_KEY__` (Google sign-in and sync) | Yes, the build fails without it |
+| `TMDB_KEY` | `__TMDB_KEY__` (the site works on every device with no pasting) | No. Without it each device pastes its own key in Settings |
+
+**These keys are still visible in the published page.** A static site has to send them to the browser. Secrets keep them out of the repository's source and history, not out of view. To limit misuse, restrict the Firebase key to your site in Google Cloud (Credentials, your API key, Websites, `https://codecultivar.github.io/*`). TMDB keys are free and can be revoked. The Firestore rules are what protect your queue.
+
+**Setup:** in the repo, add both secrets under Settings, Secrets and variables, Actions. Then set Settings, Pages, Source to **GitHub Actions**. Each push to `main` rebuilds and deploys.
+
+**Local copy:** opening `index.html` straight from the repo has no keys filled in, so paste a TMDB key in Settings. Sync is off there. To test the build locally: `FIREBASE_API_KEY=... TMDB_KEY=... node scripts/build.mjs`, then open `dist/index.html`.
+
 ## Privacy and security
 
 - Your TMDB key is stored in plain text in your browser's `localStorage` (key name `ws.key`). It leaves your browser only in requests to `api.themoviedb.org`.

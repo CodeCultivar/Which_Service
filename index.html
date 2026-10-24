@@ -326,7 +326,7 @@ footer{color:var(--muted);font-size:.8rem;display:flex;flex-direction:column;gap
   <div class="pane" id="paneSettings" role="tabpanel" aria-labelledby="tabSettings" hidden>
     <section class="card" aria-labelledby="keyHead">
       <h2 id="keyHead">TMDB key</h2>
-      <p id="keySaved" class="keysaved" hidden><span class="badge in" aria-hidden="true">&#10003;</span> A working key is saved on this device.</p>
+      <p id="keySaved" class="keysaved" hidden><span class="badge in" aria-hidden="true">&#10003;</span> <span id="keySavedText">A working key is saved on this device.</span></p>
       <div id="keySetup">
         <p>Availability data comes from TMDB, which is free for personal use. Your key stays in this browser and is only sent to TMDB.</p>
         <ol id="keySteps">
@@ -431,7 +431,10 @@ const store = {
 // Earlier versions saved a service selection. The list is fixed now, so clear it.
 ['mine','custom','addedV2','showSvcs'].forEach(k => store.del(k));
 
-let KEY = store.get('key','');
+// The build can fill in a key (see scripts/build.mjs). An unfilled placeholder counts as no key.
+const BUILT_KEY = '__TMDB_KEY__';
+const HAS_BUILT = !/^__/.test(BUILT_KEY);
+let KEY = store.get('key','') || (HAS_BUILT ? BUILT_KEY : '');
 let REGION = store.get('region','US');
 let ONLY_MINE = store.get('onlyMine', false);
 let LOGOS = store.get('logos', {});      // service id -> TMDB logo path
@@ -864,7 +867,7 @@ function startListening(user){
 
 async function cloudBoot(){
   // Restores a saved sign-in. The Firebase files are only loaded for people who turned sync on.
-  if (!store.get('cloudOn', false) || location.protocol === 'file:') return;
+  if (!store.get('cloudOn', false) || location.protocol === 'file:' || /^__/.test(FIREBASE_CONFIG.apiKey)) return;
   try{
     await loadFirebase();
     try{ await FB.auth.getRedirectResult(FB.au); }catch(e){}
@@ -875,6 +878,7 @@ async function cloudBoot(){
   }catch(e){ cloudMsg('Could not load sign-in. Check your connection.', 'err'); }
 }
 $('cloudIn').addEventListener('click', async () => {
+  if (/^__/.test(FIREBASE_CONFIG.apiKey)){ cloudMsg('Sync is not set up in this copy of the app. It is turned on in the published site.', 'err'); return; }
   if (location.protocol === 'file:'){ cloudMsg('Google sign-in only works from your web address (the GitHub Pages link), not from a file on your computer.', 'err'); return; }
   cloudMsg('Opening Google sign-in…');
   try{
@@ -1165,7 +1169,9 @@ function refreshKeyUi(){
   $('keySaved').hidden = !KEY || REPLACING;
   $('replaceKey').hidden = !KEY || REPLACING;
   $('cancelReplace').hidden = !(KEY && REPLACING);
-  $('removeKey').hidden = !KEY;
+  const own = !!store.get('key','');
+  $('removeKey').hidden = !own;
+  $('keySavedText').textContent = own ? 'A working key is saved on this device.' : 'This site includes a TMDB key, so there is nothing to set up.';
   $('useSample').hidden = REPLACING;
   $('keyInput').placeholder = KEY ? 'Paste a new key to replace the saved one' : 'Paste key';
 }
@@ -1208,7 +1214,9 @@ $('keyForm').addEventListener('submit', async e => {
   else setTimeout(() => { showTab('search'); $('q').focus(); }, 1200);
 });
 $('removeKey').addEventListener('click', () => {
-  KEY = ''; REPLACING = false; store.del('key'); provCache.clear(); enterSample(); refreshKeyUi(); keyMsg('Key removed.', 'ok');
+  store.del('key'); KEY = HAS_BUILT ? BUILT_KEY : ''; REPLACING = false; provCache.clear();
+  if (KEY){ refreshKeyUi(); keyMsg('Saved key removed. Using the key built into this site.', 'ok'); }
+  else { enterSample(); refreshKeyUi(); keyMsg('Key removed.', 'ok'); }
 });
 $('useSample').addEventListener('click', () => { enterSample(); showTab('search'); });
 
