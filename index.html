@@ -8,7 +8,8 @@
 <link rel="icon" type="image/png" sizes="192x192" href="assets/icon-192.png">
 <link rel="icon" type="image/svg+xml" href="assets/favicon.svg">
 <link rel="apple-touch-icon" href="assets/apple-touch-icon.png">
-<meta name="theme-color" content="#140B28">
+<meta name="theme-color" content="#FBE9E6" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#24120F" media="(prefers-color-scheme: dark)">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,400..800&display=swap" rel="stylesheet">
@@ -16,27 +17,36 @@
 /* Concept: a marquee. In every result, services that carry the title are lit and the rest are dimmed,
    always in the same positions. Everything else stays quiet. */
 :root{
-  --bg:#EFE9FB; --surface:#FFFFFF; --ink:#1D1630; --muted:#655C78; --line:#DDD6E8;
-  --accent:#F2B33D; --accent-ink:#2A1D00; --link:#4B3FD0; --focus:#5B3DF5; --brand:#5B3DF5; --on-brand:#FFFFFF; --pink:#E0409B; --teal:#13A89E; --none-bg:#E3DDF2;
-  --good:#0F7B5C; --on-good:#FFFFFF; --good-bg:#D9F3EA;
-  --rent:#4B49C9; --on-rent:#FFFFFF; --rent-bg:#E4E3FB;
-  --danger:#B3261E; --glow:transparent;
+  /* Sunset theme: coral #C85956 -> terracotta #C56D4F -> amber #B98249 */
+  --bg:#FBEEE8; --surface:#FFFAF6; --ink:#2B1714; --muted:#7A5B52; --line:#EDD9CE;
+  --accent:#E3A350; --accent-ink:#2B1500; --link:#A6403D; --focus:#B4473F; --brand:#B4473F; --on-brand:#FFFFFF; --pink:#C85956; --teal:#B98249; --none-bg:#F3E2D8;
+  --good:#2F7A4E; --on-good:#FFFFFF; --good-bg:#DDF0E2;
+  --rent:#8A4A7E; --on-rent:#FFFFFF; --rent-bg:#F2E1EE;
+  --banner-bg:#F6E1D3; --banner-ink:#8A3B2E;
+  --danger:#A3261E; --glow:transparent;
+  --sunset:linear-gradient(180deg,#B4473F 0%,#AD4F3A 45%,#9A5E2E 100%);   /* the wallpaper gradient, deepened so white text stays readable */
+  --amber:linear-gradient(135deg,#E3A350,#D98A52);
+  --page:linear-gradient(180deg,#FBE9E6 0%,#FAEDE4 50%,#F8F0E2 100%);
   --font:'Bricolage Grotesque',system-ui,-apple-system,'Segoe UI',sans-serif;
   color-scheme:light;
 }
 @media (prefers-color-scheme:dark){
   :root{
-    --bg:#140B28; --surface:#1F1636; --ink:#F1ECFA; --muted:#A99FC0; --line:#352C4B;
-    --accent:#F5B942; --accent-ink:#2A1D00; --link:#B7ABFF; --focus:#FFD27A; --brand:#B7ABFF; --on-brand:#1A1240; --pink:#FF7AC6; --teal:#4FE3D6; --none-bg:#241A3F;
-    --good:#5BE0B0; --on-good:#08261C; --good-bg:#123C30;
-    --rent:#A9A6FF; --on-rent:#14123F; --rent-bg:#2B2A5E;
+    --bg:#1C110F; --surface:#2A1A16; --ink:#FBEDE6; --muted:#C9A99C; --line:#43302A;
+    --accent:#F0B262; --accent-ink:#2B1500; --link:#F4A08F; --focus:#F6C27E; --brand:#E57A6C; --on-brand:#2B0F0B; --pink:#E57A6C; --teal:#D9A062; --none-bg:#33221D;
+    --good:#6FD39A; --on-good:#0B2616; --good-bg:#16382A;
+    --rent:#E0A3D3; --on-rent:#2A1026; --rent-bg:#3E2238;
+    --banner-bg:#3A241C; --banner-ink:#F3B8A0;
     --danger:#FF8A80; --glow:1;
+    --sunset:linear-gradient(180deg,#E57A6C 0%,#DE8B66 50%,#D9A062 100%);
+    --amber:linear-gradient(135deg,#F0B262,#E39A5E);
+    --page:linear-gradient(180deg,#24120F 0%,#1F1410 55%,#1C160E 100%);
     color-scheme:dark;
   }
 }
 *{box-sizing:border-box}
 html,body{margin:0}
-body{background:var(--bg);color:var(--ink);font:400 1rem/1.5 var(--font);padding-inline:16px;padding-block:20px 56px}
+body{background:var(--bg) var(--page) fixed;color:var(--ink);font:400 1rem/1.5 var(--font);padding-inline:16px;padding-block:20px 56px}
 .wrap{max-width:960px;margin-inline:auto;display:flex;flex-direction:column;gap:24px}
 .sr{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}
 button,input,select{font:inherit;color:inherit}
@@ -48,7 +58,7 @@ button,input,select{font:inherit;color:inherit}
 .acct{order:3;display:inline-flex;align-items:center;gap:8px;min-height:44px;padding:0 16px 0 8px;max-width:180px;background:var(--surface);color:var(--ink);border:2px solid var(--line);border-radius:999px;font:inherit;font-weight:700;cursor:pointer;touch-action:manipulation}
 .acct:hover{border-color:var(--accent)}
 .acct[aria-current=page]{border-color:var(--accent)}
-.acct.out{padding:0 18px;background:var(--accent);border-color:var(--accent);color:var(--accent-ink)}
+.acct.out{padding:0 18px;background:var(--accent) var(--amber);border-color:transparent;color:var(--accent-ink)}
 .acct #acctLabel{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .av{flex:none;width:28px;height:28px;border-radius:50%;background:var(--brand);color:var(--on-brand);display:grid;place-items:center;font-size:.85rem;font-weight:800}
 .av[hidden]{display:none}
@@ -73,7 +83,7 @@ h2{margin:0;font:700 1.1rem/1.2 var(--font);letter-spacing:-.005em}
 .tabs{display:flex;gap:2px;padding:3px;background:var(--surface);border:1px solid var(--line);border-radius:999px}
 .tab{background:none;border:0;border-radius:999px;padding:8px 18px;cursor:pointer;color:var(--muted);font-weight:600;line-height:1}
 .tab:hover{color:var(--ink)}
-.tab[aria-selected="true"]{background:var(--brand);color:var(--on-brand)}
+.tab[aria-selected="true"]{background:var(--brand) var(--sunset);color:var(--on-brand)}
 
 .pane{display:flex;flex-direction:column;gap:24px}
 .pane[hidden]{display:none}
@@ -86,7 +96,7 @@ select,.ghost{background:var(--surface);border:1px solid var(--line);border-radi
 .search input{flex:1;min-width:0;background:var(--surface);border:2px solid var(--line);border-radius:16px;padding:0 20px;height:60px;font-size:1.2rem;font-weight:500}
 .search input::placeholder{color:var(--muted);font-weight:400}
 .search input:focus-visible{border-color:var(--focus);outline:none}
-.primary{background:var(--accent);color:var(--accent-ink);border:0;border-radius:16px;padding:0 26px;font-weight:700;cursor:pointer}
+.primary{background:var(--accent) var(--amber);color:var(--accent-ink);border:0;border-radius:16px;padding:0 26px;font-weight:700;cursor:pointer}
 .reset{background:var(--surface);color:var(--ink);border:2px solid var(--line);border-radius:16px;padding:0 20px;font-weight:700;cursor:pointer}
 .reset:hover{border-color:var(--accent)}
 .primary:hover{filter:brightness(1.06)}
@@ -130,7 +140,7 @@ select,.ghost{background:var(--surface);border:1px solid var(--line);border-radi
 .badge.in{background:var(--good);color:var(--on-good)}
 .badge.pay{background:var(--rent);color:var(--on-rent)}
 
-.banner{background:var(--rent-bg);color:var(--rent);border-radius:12px;padding:10px 14px;font-size:.9rem;display:flex;flex-wrap:wrap;gap:4px 12px;align-items:baseline}
+.banner{background:var(--banner-bg);color:var(--banner-ink);border-radius:12px;padding:10px 14px;font-size:.9rem;display:flex;flex-wrap:wrap;gap:4px 12px;align-items:baseline}
 .banner[hidden]{display:none}
 .linkbtn{background:none;border:0;color:var(--link);text-decoration:underline;cursor:pointer;padding:0;font-weight:600}
 .banner .linkbtn{color:inherit}
@@ -157,7 +167,7 @@ select,.ghost{background:var(--surface);border:1px solid var(--line);border-radi
 .qbtn:hover,.qact:hover{border-color:var(--accent)}
 .qbtn:active,.qact:active{transform:scale(.97)}
 .qbtn.on{background:var(--none-bg);border-color:var(--good);color:var(--good)}
-.qact[data-act=watch]{background:var(--accent);border-color:var(--accent);color:var(--accent-ink)}
+.qact[data-act=watch]{background:var(--accent) var(--amber);border-color:transparent;color:var(--accent-ink)}
 .qact[data-act=remove]{color:var(--muted)}
 .moveto{flex-basis:100%;display:flex;flex-wrap:wrap;gap:8px;align-items:center;padding:10px;border:2px dashed var(--line);border-radius:14px}.moveto b{flex-basis:100%;font-size:.85rem;color:var(--muted)}.qact[data-act=moveto]{background:var(--surface)}
 .qact:disabled{opacity:.4;cursor:default;border-color:var(--line)}
@@ -268,7 +278,7 @@ a.ci:hover .svc{text-decoration:underline}
 .chips{display:flex;flex-wrap:wrap;gap:8px}
 .chip{min-height:44px;max-width:100%;padding:0 18px;font:inherit;font-weight:700;color:var(--ink);background:var(--surface);border:2px solid var(--line);border-radius:999px;cursor:pointer;touch-action:manipulation;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .chip:hover{border-color:var(--accent)}
-.chip.on{background:var(--brand);border-color:var(--brand);color:var(--on-brand)}
+.chip.on{background:var(--brand) var(--sunset);border-color:transparent;color:var(--on-brand)}
 .chip.add{border-style:dashed;color:var(--muted)}
 .newlist{display:flex;flex-wrap:wrap;gap:8px}
 .newlist[hidden],.listinfo[hidden]{display:none}
