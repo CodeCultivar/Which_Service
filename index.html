@@ -218,6 +218,9 @@ a.ci:hover .svc{text-decoration:underline}
 .keyrow{display:flex;flex-wrap:wrap;gap:8px}
 .keyrow input{flex:1 1 220px;min-width:0;background:var(--bg);border:1px solid var(--line);border-radius:12px;padding:12px 14px}
 .keyrow .primary{padding:12px 20px;border-radius:12px}
+.syncbtn{min-height:48px;padding:0 22px;border-radius:14px}
+.manual{display:flex;flex-direction:column;gap:12px}
+.manual summary{cursor:pointer;font-weight:600;color:var(--link);min-height:44px;display:flex;align-items:center}
 .syncrow{display:flex}
 .syncrow .primary,.syncrow .ghost{min-height:48px;padding:0 22px;border-radius:14px}
 .syncrow .ghost{font-weight:700}
@@ -368,12 +371,22 @@ footer{color:var(--muted);font-size:.8rem;display:flex;flex-direction:column;gap
 
     <section class="card" aria-labelledby="syncHead">
       <h2 id="syncHead">Sync between devices</h2>
-      <p>Your queue lives in this browser. To move it to another device, copy a sync code here and paste it into Settings on the other device. Importing replaces that device's queue. The code holds your queue and region only, never your TMDB key.</p>
-      <div class="syncrow"><button type="button" class="primary" id="syncCopy">Copy sync code</button></div>
-      <label class="sr" for="syncBox">Sync code</label>
-      <textarea id="syncBox" rows="3" placeholder="Paste a sync code from another device" spellcheck="false" autocapitalize="off" autocomplete="off"></textarea>
-      <div class="syncrow"><button type="button" class="ghost" id="syncImport">Import code</button></div>
-      <p class="keymsg" id="syncMsg" role="status" aria-live="polite"></p>
+      <p id="cloudIntro">Sign in with Google and your queue stays the same on every device you sign in on. Only your queue is stored, tied to your Google account. Your TMDB key is never synced.</p>
+      <p class="keysaved" id="cloudUser" hidden><span class="badge in" aria-hidden="true">&#10003;</span> <span id="cloudWho"></span></p>
+      <div class="keyactions">
+        <button type="button" class="primary syncbtn" id="cloudIn">Sign in with Google</button>
+        <button type="button" class="ghost" id="cloudOut" hidden>Sign out</button>
+      </div>
+      <p class="keymsg" id="cloudMsg" role="status" aria-live="polite"></p>
+      <details class="manual">
+        <summary>Use a sync code instead</summary>
+        <p>Copy a code here and paste it into Settings on another device. Importing replaces that device's queue. The code holds your queue and region only.</p>
+        <div class="syncrow"><button type="button" class="ghost" id="syncCopy">Copy sync code</button></div>
+        <label class="sr" for="syncBox">Sync code</label>
+        <textarea id="syncBox" rows="3" placeholder="Paste a sync code from another device" spellcheck="false" autocapitalize="off" autocomplete="off"></textarea>
+        <div class="syncrow"><button type="button" class="ghost" id="syncImport">Import code</button></div>
+        <p class="keymsg" id="syncMsg" role="status" aria-live="polite"></p>
+      </details>
     </section>
   </div>
 
@@ -619,7 +632,7 @@ function toggleQueue(k){
     b.innerHTML = on ? '&#10003; In queue' : '+ Add to queue';
   });
 }
-function saveQueue(){ store.set('queue', QUEUE); updateQueueUi(); }
+function saveQueue(){ store.set('queue', QUEUE); updateQueueUi(); syncPush(); }
 function queueAct(act, k){
   const i = QUEUE.findIndex(x => keyOf(x) === k);
   if (i < 0) return;
@@ -779,9 +792,13 @@ async function pipe(bytes, Ctor, kind){
   const st = new Blob([bytes]).stream().pipeThrough(new Ctor(kind));
   return new Uint8Array(await new Response(st).arrayBuffer());
 }
+const packQueue = () => QUEUE.map(h => ({id:h.id, m:h.media_type, t:h.title||undefined, n:h.name||undefined, d:h.release_date||h.first_air_date||undefined,
+  p:h.poster_path||undefined, o:(h.overview||'').slice(0,260)||undefined, v:h.vote_average||undefined, w:h.watched ? 1 : undefined}));
+const unpackQueue = arr => arr.filter(x => x && Number.isInteger(x.id) && (x.m === 'movie' || x.m === 'tv')).map(x => ({
+  id:x.id, media_type:x.m, title:x.t, name:x.n, release_date:x.m === 'movie' ? x.d : undefined, first_air_date:x.m === 'tv' ? x.d : undefined,
+  poster_path:typeof x.p === 'string' && /^\/[\w.-]+$/.test(x.p) ? x.p : undefined, overview:typeof x.o === 'string' ? x.o : '', vote_average:Number(x.v)||undefined, watched:!!x.w}));
 async function makeSyncCode(){
-  const items = QUEUE.map(h => ({id:h.id, m:h.media_type, t:h.title||undefined, n:h.name||undefined, d:h.release_date||h.first_air_date||undefined,
-    p:h.poster_path||undefined, o:(h.overview||'').slice(0,260)||undefined, v:h.vote_average||undefined, w:h.watched ? 1 : undefined}));
+  const items = packQueue();
   const bytes = new TextEncoder().encode(JSON.stringify({v:1, region:REGION, q:items}));
   if (typeof CompressionStream === 'function'){ try{ return 'WS1z.'+b64(await pipe(bytes, CompressionStream, 'gzip')); }catch(e){} }
   return 'WS1.'+b64(bytes);
@@ -794,9 +811,7 @@ async function readSyncCode(text){
   if (m[1]){ if (typeof DecompressionStream !== 'function') throw new Error('This browser cannot read compressed sync codes.'); bytes = await pipe(bytes, DecompressionStream, 'gzip'); }
   const d = JSON.parse(new TextDecoder().decode(bytes));
   if (!d || d.v !== 1 || !Array.isArray(d.q)) throw new Error('That sync code is not supported by this version.');
-  const q = d.q.filter(x => x && Number.isInteger(x.id) && (x.m === 'movie' || x.m === 'tv')).map(x => ({
-    id:x.id, media_type:x.m, title:x.t, name:x.n, release_date:x.m === 'movie' ? x.d : undefined, first_air_date:x.m === 'tv' ? x.d : undefined,
-    poster_path:typeof x.p === 'string' && /^\/[\w.-]+$/.test(x.p) ? x.p : undefined, overview:typeof x.o === 'string' ? x.o : '', vote_average:Number(x.v)||undefined, watched:!!x.w}));
+  const q = unpackQueue(d.q);
   return {q, region: REGIONS[d.region] ? d.region : null};
 }
 function syncMsg(t, kind){ const m = $('syncMsg'); m.textContent = t; m.className = 'keymsg' + (kind ? ' '+kind : ''); }
@@ -816,6 +831,134 @@ $('syncImport').addEventListener('click', async () => {
     syncMsg('Imported '+QUEUE.length+(QUEUE.length === 1 ? ' title' : ' titles')+'. Open the Queue tab to see them.', 'ok');
   }catch(e){ syncMsg(e && e.message ? e.message : 'Could not read that code.', 'err'); }
 });
+
+/* ---------- Automatic sync (Firebase: Google sign-in + Firestore) ---------- */
+// These identify the project and are meant to be public. The Firestore rules limit each document to its own signed-in user.
+const FIREBASE_CONFIG = {
+  apiKey: "__FIREBASE_API_KEY__",
+  authDomain: "which-service.firebaseapp.com",
+  projectId: "which-service",
+  storageBucket: "which-service.firebasestorage.app",
+  messagingSenderId: "421541307442",
+  appId: "1:421541307442:web:717d6dac9a0c92cd1b082b"
+};
+const FB_VER = '10.14.1', FB_BASE = 'https://www.gstatic.com/firebasejs/'+FB_VER+'/';
+let FB = null, CLOUD = {user:null, ref:null, unsub:null, merged:false, rev:store.get('cloudRev', 0)};
+const cloudMsg = (t, kind) => { const m = $('cloudMsg'); m.textContent = t; m.className = 'keymsg' + (kind ? ' '+kind : ''); };
+
+async function loadFirebase(){
+  if (FB) return FB;
+  const [app, auth, fs] = await Promise.all([import(FB_BASE+'firebase-app.js'), import(FB_BASE+'firebase-auth.js'), import(FB_BASE+'firebase-firestore.js')]);
+  const a = app.initializeApp(FIREBASE_CONFIG);
+  FB = {app, auth, fs, a, au: auth.getAuth(a), db: fs.getFirestore(a)};
+  return FB;
+}
+function cloudUi(){
+  const u = CLOUD.user;
+  $('cloudUser').hidden = !u; $('cloudOut').hidden = !u; $('cloudIn').hidden = !!u;
+  $('cloudIntro').hidden = !!u;
+  if (u) $('cloudWho').textContent = 'Signed in as '+(u.email || u.displayName || 'your Google account')+'. Your queue syncs automatically.';
+}
+// Titles on either side are kept. Remote order first, then titles only this device had. Watched on either side stays watched.
+function mergeQueues(remote, local){
+  const out = remote.map(x => Object.assign({}, x));
+  for (const l of local){
+    const m = out.find(x => keyOf(x) === keyOf(l));
+    if (m){ if (l.watched) m.watched = true; } else out.push(Object.assign({}, l));
+  }
+  return out.filter(x => !x.watched).concat(out.filter(x => x.watched));
+}
+function refreshQueueViews(){
+  document.querySelectorAll('#results .qbtn').forEach(b => {
+    const on = QUEUE.some(x => keyOf(x) === b.getAttribute('data-key'));
+    b.classList.toggle('on', on); b.setAttribute('aria-pressed', String(on));
+    b.innerHTML = on ? '&#10003; In queue' : '+ Add to queue';
+  });
+  if (!$('paneQueue').hidden) renderQueue();
+}
+function applyRemote(items, rev){
+  QUEUE = items; CLOUD.rev = rev; store.set('cloudRev', rev);
+  store.set('queue', QUEUE); updateQueueUi(); refreshQueueViews();
+}
+let pushTimer = 0;
+function syncPush(){
+  if (!CLOUD.user || !CLOUD.merged || !FB) return;
+  clearTimeout(pushTimer);
+  pushTimer = setTimeout(async () => {
+    const rev = Date.now();
+    try{
+      CLOUD.rev = rev; store.set('cloudRev', rev);
+      await FB.fs.setDoc(CLOUD.ref, JSON.parse(JSON.stringify({queue:packQueue(), rev, updated:rev})));
+      cloudMsg('Synced.', 'ok');
+    }catch(e){ cloudMsg('Could not save to the cloud. Your queue is kept on this device and will sync on your next change.', 'err'); }
+  }, 400);
+}
+function startListening(user){
+  CLOUD.user = user; CLOUD.merged = false;
+  CLOUD.ref = FB.fs.doc(FB.db, 'users', user.uid);
+  if (CLOUD.unsub) CLOUD.unsub();
+  CLOUD.unsub = FB.fs.onSnapshot(CLOUD.ref, snap => {
+    const d = snap.exists() ? snap.data() : null;
+    const remote = d && Array.isArray(d.queue) ? unpackQueue(d.queue) : [];
+    if (!CLOUD.merged){
+      if (snap.metadata && snap.metadata.fromCache) return;   // wait for the real copy before merging, so an offline start never overwrites it
+      CLOUD.merged = true;
+      const merged = mergeQueues(remote, QUEUE);
+      const sig = a => a.map(x => keyOf(x)+(x.watched ? '!' : '')).join(',');
+      const same = !!d && sig(merged) === sig(remote);
+      applyRemote(merged, d ? (d.rev || 0) : 0);
+      if (!same) syncPush(); else cloudMsg('Synced.', 'ok');
+      return;
+    }
+    if (!d || d.rev === CLOUD.rev) return;          // our own write, or nothing new
+    applyRemote(remote, d.rev || 0);
+    cloudMsg('Updated from another device.', 'ok');
+  }, err => cloudMsg(err && err.code === 'permission-denied'
+    ? 'The cloud rejected this sign-in. Check the Firestore rules in your Firebase project.'
+    : 'Lost the connection to sync. It will retry on its own.', 'err'));
+  cloudUi();
+}
+
+async function cloudBoot(){
+  // Restores a saved sign-in. The Firebase files are only loaded for people who turned sync on.
+  if (!store.get('cloudOn', false) || location.protocol === 'file:') return;
+  try{
+    await loadFirebase();
+    try{ await FB.auth.getRedirectResult(FB.au); }catch(e){}
+    FB.auth.onAuthStateChanged(FB.au, u => {
+      if (u) startListening(u);
+      else { if (CLOUD.unsub) CLOUD.unsub(); CLOUD.user = null; CLOUD.merged = false; cloudUi(); }
+    });
+  }catch(e){ cloudMsg('Could not load sign-in. Check your connection.', 'err'); }
+}
+$('cloudIn').addEventListener('click', async () => {
+  if (location.protocol === 'file:'){ cloudMsg('Google sign-in only works from your web address (the GitHub Pages link), not from a file on your computer.', 'err'); return; }
+  cloudMsg('Opening Google sign-in…');
+  try{
+    await loadFirebase();
+    const provider = new FB.auth.GoogleAuthProvider();
+    store.set('cloudOn', true);
+    try{
+      const r = await FB.auth.signInWithPopup(FB.au, provider);
+      if (!CLOUD.user) startListening(r.user);
+      cloudMsg('Signed in. Syncing…', 'ok');
+    }catch(e){
+      if (e && (e.code === 'auth/popup-blocked' || e.code === 'auth/operation-not-supported-in-this-environment')){
+        cloudMsg('Redirecting to Google…'); await FB.auth.signInWithRedirect(FB.au, provider); return;
+      }
+      if (e && (e.code === 'auth/popup-closed-by-user' || e.code === 'auth/cancelled-popup-request')){ cloudMsg('Sign-in cancelled.'); store.set('cloudOn', !!CLOUD.user); return; }
+      if (e && e.code === 'auth/unauthorized-domain'){ cloudMsg('This web address is not allowed yet. Add it under Authentication, Settings, Authorized domains in Firebase.', 'err'); store.set('cloudOn', false); return; }
+      throw e;
+    }
+    if (!CLOUD.unsub) cloudBoot();
+  }catch(e){ cloudMsg('Sign-in failed'+(e && e.code ? ' ('+e.code+')' : '')+'. Try again.', 'err'); store.set('cloudOn', !!CLOUD.user); }
+});
+$('cloudOut').addEventListener('click', async () => {
+  try{ if (CLOUD.unsub) CLOUD.unsub(); CLOUD.unsub = null; await FB.auth.signOut(FB.au); }catch(e){}
+  CLOUD.user = null; CLOUD.merged = false; store.set('cloudOn', false); store.del('cloudRev'); CLOUD.rev = 0;
+  cloudUi(); cloudMsg('Signed out. Your queue stays on this device.', 'ok');
+});
+
 function keyMsg(t, kind){ const m = $('keyMsg'); m.textContent = t; m.className = 'keymsg' + (kind ? ' '+kind : ''); }
 
 // Says where the page is running, because a preview frame blocks outside requests.
@@ -1130,6 +1273,8 @@ $('useSample').addEventListener('click', () => { enterSample(); showTab('search'
 renderServices();
 refreshKeyUi();
 updateQueueUi();
+cloudUi();
+cloudBoot();
 if (DEMO) enterSample();
 else { setStatus('Search for a title to see where it streams in '+REGIONS[REGION]+'.'); loadLogos(); route(); }
 </script>

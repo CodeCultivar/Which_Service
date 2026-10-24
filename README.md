@@ -54,7 +54,7 @@ python3 -m http.server
 - **Queue:** choose **Add to queue** on a result to save it to the end of your list. The Queue tab keeps your order (top is next), and you can move a title with **Top**, **Up** and **Down**. **Mark watched** moves it to a Watched section at the bottom, and **Mark unwatched** puts it back on top. Each time you open the tab it re-checks where every title streams. The queue is saved in this browser only and needs a TMDB key.
 - **Cast:** select a name to open their person page: photo, basic facts (born, birthplace, known for), biography, and a filmography you can filter to movies or TV. Select a credit to search where it streams. The browser Back button returns to your results.
 - **Services tab:** the twelve services with logos, and what the lit, $ and dimmed marks mean.
-- **Sync:** the queue is stored per browser. In Settings, **Copy sync code** makes a code on one device, and **Import code** on another device replaces its queue with it (titles, order, watched, region). The code never includes your TMDB key. It is a manual copy and paste, not automatic syncing, because the app has no server.
+- **Sync:** in Settings, **Sign in with Google** keeps your queue the same on every device you sign in on, automatically. Only the queue is stored (in a free Firebase project, under your Google account), never your TMDB key. It works from the web address, not from a file opened on your computer. **Use a sync code instead** is a manual copy and paste fallback.
 - **Key box:** once a working key is saved, Settings shows only **Replace key**, **Remove key** and **Use sample data**. Choose **Replace key** to show the paste box again, or **Cancel** to hide it.
 - **Settings tab:** the TMDB key, region, "Only show titles I can watch", .
 - **Light and dark:** the page follows your system setting.
@@ -82,7 +82,7 @@ The hosted page is the same code for everyone: each visitor pastes their own TMD
 - Your TMDB key is stored in plain text in your browser's `localStorage` (key name `ws.key`). It leaves your browser only in requests to `api.themoviedb.org`.
 - The repository contains no key. Never commit one.
 - Anyone who can use your browser profile can read the key. When opened from `file://`, Chrome shares storage across local files, so serving from `localhost` or Pages gives the app its own storage. A TMDB key is free and read-only, and you can regenerate it in your TMDB account at any time.
-- Saved in your browser only: the key, region, the "only show titles I can watch" choice, your queue, and cached logo paths.
+- Saved in your browser (and, only if you sign in, your queue in Firebase): the key, region, the "only show titles I can watch" choice, your queue, and cached logo paths.
 
 ## Regions
 
