@@ -108,11 +108,18 @@ Sync and shared queues need these rules in Firebase (Firestore Database, Rules, 
 rules_version = '2';
 service cloud.firestore {
   match /databases/{db}/documents {
+    function isOwner() {
+      return request.auth != null
+        && request.auth.token.email == 'tjmaco@gmail.com'
+        && request.auth.token.email_verified == true;
+    }
     match /users/{uid} {
       allow read, write: if request.auth != null && request.auth.uid == uid;
+      allow list: if isOwner();
     }
     match /lists/{listId} {
       allow get: if request.auth != null;
+      allow list: if isOwner();
       allow create: if request.auth != null
         && request.resource.data.owner == request.auth.uid
         && request.resource.data.members == [request.auth.uid];
@@ -132,7 +139,11 @@ service cloud.firestore {
 }
 ```
 
-A shared queue's address is a random 32-character id, and the rules do not let anyone list queues. Only people who have the id (the invite link) can open one, and only members can change it.
+A shared queue's address is a random 32-character id, and the rules do not let anyone list queues except the owner's Google account (used only by the Admin page to count them). Only people who have the id (the invite link) can open one, and only members can change it.
+
+## Admin page
+
+Signed in as the owner's Google account (`tjmaco@gmail.com`, set as `ADMIN_EMAIL` in `index.html`), the account page shows an **Admin** button. It opens counts of **accounts** (people who have signed in and synced) and **shared queues**, loaded with count queries so no one's titles are read. Other accounts never see the button. What really protects the numbers is the `isOwner()` rule above: without it the counts fail with "permission denied", so publish the updated rules first.
 
 ## Privacy and security
 

@@ -104,6 +104,7 @@ select,.ghost{background:var(--surface);border:1px solid var(--line);border-radi
 .svc-list{list-style:none;margin:0;padding:0;display:flex;flex-wrap:wrap;gap:8px}
 .svc-item:hover{border-color:var(--muted)}
 .svc-off .svc-item{opacity:.45}
+.stats{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px;margin:12px 0}.stats div{background:var(--surface);border:1px solid var(--line);border-radius:16px;padding:14px 16px}.stats dt{color:var(--muted);font-weight:600}.stats dd{margin:4px 0 0;font:800 2.2rem/1.1 var(--font)}
 .mysvcs{list-style:none;margin:12px 0 0;padding:0;display:grid;grid-template-columns:repeat(auto-fill,minmax(210px,1fr));gap:8px}
 .mysvcs label{display:flex;align-items:center;gap:10px;min-height:48px;padding:6px 12px;background:var(--surface);border:1px solid var(--line);border-radius:14px;cursor:pointer;font-weight:600}
 .mysvcs input{width:22px;height:22px;flex:none;accent-color:var(--accent)}
@@ -404,11 +405,26 @@ footer{color:var(--muted);font-size:.8rem;display:flex;flex-direction:column;gap
         <button type="button" class="ghost" id="cloudOut" hidden>Sign out</button>
       </div>
       <p class="keymsg" id="cloudMsg" role="status" aria-live="polite"></p>
+      <div class="keyactions"><button type="button" class="ghost" id="adminOpen" hidden>Admin</button></div>
     </section>
     <footer>
       <span>Streaming availability data from JustWatch, provided through TMDB. Service logos from TMDB.</span>
       <span>This product uses the TMDB API but is not endorsed or certified by TMDB.</span>
     </footer>
+  </div>
+
+  <div class="pane" id="paneAdmin" role="region" aria-labelledby="adminHead" hidden>
+    <section class="card" aria-labelledby="adminHead">
+      <h2 id="adminHead">Admin</h2>
+      <p class="hint">Only the owner account can load these numbers. The Firestore rules enforce that, not this page.</p>
+      <dl class="stats">
+        <div><dt>Accounts</dt><dd id="admUsers">&ndash;</dd></div>
+        <div><dt>Shared queues</dt><dd id="admLists">&ndash;</dd></div>
+      </dl>
+      <p class="hint">Accounts counts people who have signed in and synced at least once. Every account also has one personal queue. Shared queues are the ones people created to share.</p>
+      <div class="keyactions"><button type="button" class="primary" id="admRefresh">Refresh</button><button type="button" class="ghost" id="admBack">Back</button></div>
+      <p class="keymsg" id="admMsg" role="status" aria-live="polite"></p>
+    </section>
   </div>
 
   <div class="pane" id="panePerson" role="region" aria-label="Person" hidden>
@@ -980,6 +996,8 @@ const FIREBASE_CONFIG = {
   messagingSenderId: "421541307442",
   appId: "1:421541307442:web:717d6dac9a0c92cd1b082b"
 };
+const ADMIN_EMAIL = 'tjmaco@gmail.com';   // only this Google account sees the Admin page; the Firestore rules decide who can read the numbers
+const isAdmin = u => !!u && u.emailVerified !== false && String(u.email || '').toLowerCase() === ADMIN_EMAIL;
 const FB_VER = '10.14.1', FB_BASE = 'https://www.gstatic.com/firebasejs/'+FB_VER+'/';
 let FB = null, CLOUD = {user:null, ref:null, unsub:null, merged:false, rev:store.get('cloudRev', 0)};
 const cloudMsg = (t, kind) => { const m = $('cloudMsg'); m.textContent = t; m.className = 'keymsg' + (kind ? ' '+kind : ''); };
@@ -1010,6 +1028,8 @@ function cloudUi(){
   if (typeof renderListBar === 'function') renderListBar();
   $('cloudUser').hidden = !u; $('cloudSynced').hidden = !u; $('cloudOut').hidden = !u; $('cloudIn').hidden = !!u;
   $('cloudIntro').hidden = !!u;
+  $('adminOpen').hidden = !isAdmin(u);
+  if (!isAdmin(u) && !$('paneAdmin').hidden) showTab('account');
   $('acctHead').textContent = u ? 'Your account' : 'Sign in';
   const b = $('acct');
   b.classList.toggle('out', !u);
@@ -1411,17 +1431,19 @@ function showError(e){
 /* ---------- Tabs ---------- */
 let lastTab = 'search';
 function showTab(name){
-  const person = name === 'person', account = name === 'account';
-  if (!person && !account) lastTab = name;
+  if (name === 'admin' && !isAdmin(CLOUD.user)) name = 'account';
+  const person = name === 'person', account = name === 'account', admin = name === 'admin';
+  if (!person && !account && !admin) lastTab = name;
   $('paneSearch').hidden = name !== 'search';
   $('paneServices').hidden = name !== 'services';
   $('paneQueue').hidden = name !== 'queue';
   $('paneSettings').hidden = name !== 'settings';
   $('paneAccount').hidden = !account;
+  $('paneAdmin').hidden = !admin;
   $('panePerson').hidden = !person;
   [['search','tabSearch'],['queue','tabQueue'],['services','tabServices'],['settings','tabSettings']].forEach(([n,id]) => {
     $(id).setAttribute('aria-selected', String(name === n));
-    $(id).tabIndex = name === n || ((person || account) && n === lastTab) ? 0 : -1;
+    $(id).tabIndex = name === n || ((person || account || admin) && n === lastTab) ? 0 : -1;
   });
   if (account) $('acct').setAttribute('aria-current', 'page'); else $('acct').removeAttribute('aria-current');
   if (name === 'queue') renderQueue();
@@ -1449,6 +1471,21 @@ $('resetBtn').addEventListener('click', resetSearch);
 $('tabSearch').addEventListener('click', () => { clearPersonHash(); showTab('search'); });
 $('tabSettings').addEventListener('click', () => { clearPersonHash(); showTab('settings'); });
 $('tabServices').addEventListener('click', () => { clearPersonHash(); showTab('services'); });
+async function adminLoad(){
+  if (!isAdmin(CLOUD.user) || !FB) return;
+  const m = $('admMsg'); m.className = 'keymsg'; m.textContent = 'Counting…';
+  try{
+    const f = FB.fs, [u, l] = await Promise.all([f.getCountFromServer(f.collection(FB.db, 'users')), f.getCountFromServer(f.collection(FB.db, 'lists'))]);
+    $('admUsers').textContent = u.data().count; $('admLists').textContent = l.data().count;
+    m.textContent = 'Updated '+new Date().toLocaleTimeString()+'.';
+  }catch(e){
+    m.className = 'keymsg err';
+    m.textContent = e && e.code === 'permission-denied' ? 'The Firestore rules do not allow this yet. Publish the admin rules from the README.' : 'Could not load the numbers. Try again.';
+  }
+}
+$('adminOpen').addEventListener('click', () => { showTab('admin'); adminLoad(); });
+$('admRefresh').addEventListener('click', adminLoad);
+$('admBack').addEventListener('click', () => showTab('account'));
 $('acct').addEventListener('click', () => { clearPersonHash(); showTab('account'); });
 $('tabQueue').addEventListener('click', () => { clearPersonHash(); showTab('queue'); });
 $('tabs').addEventListener('keydown', e => {
