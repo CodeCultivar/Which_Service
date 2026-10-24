@@ -115,6 +115,6 @@ The page uses [Bricolage Grotesque](https://fonts.google.com/specimen/Bricolage+
 
 Streaming availability data from JustWatch, provided through TMDB. Service logos from TMDB.
 
-This product uses the TMDB API but is not endorsed or certified by TMDB. Keep this notice in the app's footer.
+This product uses the TMDB API but is not endorsed or certified by TMDB. Keep this notice in the app, on the sign-in and account page.
 
 Service names and logos belong to their respective owners.
