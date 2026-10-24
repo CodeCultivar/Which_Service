@@ -224,6 +224,7 @@ a.ci:hover .svc{text-decoration:underline}
 @keyframes lightUp{from{opacity:.45;filter:grayscale(.85)}to{opacity:1;filter:none}}
 .row:nth-child(-n+3) .cell.in .lg,.row:nth-child(-n+3) .cell.pay .lg{animation:lightUp .55s ease-out both;animation-delay:calc(var(--i,0)*70ms)}
 
+.card[hidden]{display:none}
 .card{background:var(--surface);border:1px solid var(--line);border-radius:18px;padding:22px;display:flex;flex-direction:column;gap:14px}
 .card p{margin:0;color:var(--muted)}
 .card ol{margin:0;padding-left:1.2em;color:var(--muted)}
@@ -352,7 +353,7 @@ footer{color:var(--muted);font-size:.8rem;display:flex;flex-direction:column;gap
   </div>
 
   <div class="pane" id="paneSettings" role="tabpanel" aria-labelledby="tabSettings" hidden>
-    <section class="card" aria-labelledby="keyHead">
+    <section id="keyCard" class="card" aria-labelledby="keyHead">
       <h2 id="keyHead">TMDB key</h2>
       <p id="keySaved" class="keysaved" hidden><span class="badge in" aria-hidden="true">&#10003;</span> <span id="keySavedText">A working key is saved on this device.</span></p>
       <div id="keySetup">
@@ -452,7 +453,9 @@ const store = {
 // The build can fill in a key (see scripts/build.mjs). An unfilled placeholder counts as no key.
 const BUILT_KEY = '__TMDB_KEY__';
 const HAS_BUILT = !/^__/.test(BUILT_KEY);
-let KEY = store.get('key','') || (HAS_BUILT ? BUILT_KEY : '');
+// A key built into the site is the only key used there. Settings shows the key box only when the build left it out.
+if (HAS_BUILT) store.del('key');
+let KEY = HAS_BUILT ? BUILT_KEY : store.get('key','');
 let REGION = store.get('region','US');
 let ONLY_MINE = store.get('onlyMine', false);
 let LOGOS = store.get('logos', {});      // service id -> TMDB logo path
@@ -950,7 +953,7 @@ function envHint(){
 
 function showError(e){
   rows = []; $('results').innerHTML = '';
-  if (e && (e.status === 401 || e.status === 403)) setStatus('TMDB rejected the key. Open Settings and paste it again.', true);
+  if (e && (e.status === 401 || e.status === 403)) setStatus(HAS_BUILT ? 'TMDB rejected this site\'s key. It may have been revoked, so the key in the deploy secrets needs replacing.' : 'TMDB rejected the key. Open Settings and paste it again.', true);
   else if (e && e.status === 429) setStatus('TMDB asked to slow down. Wait a few seconds and search again.', true);
   else if (e && e.status) setStatus('TMDB returned an error ('+e.status+'). Try again in a moment.', true);
   else setStatus('Could not reach TMDB. '+envHint(), true);
@@ -1259,6 +1262,7 @@ $('useSample').addEventListener('click', () => { enterSample(); showTab('search'
 /* ---------- Boot ---------- */
 renderServices();
 refreshKeyUi();
+$('keyCard').hidden = HAS_BUILT;
 updateQueueUi();
 cloudUi();
 cloudBoot();

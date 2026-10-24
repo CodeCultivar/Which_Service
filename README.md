@@ -92,6 +92,8 @@ The published site is built by GitHub Actions (`.github/workflows/pages.yml`, `s
 
 **Setup:** in the repo, add both secrets under Settings, Secrets and variables, Actions. Then set Settings, Pages, Source to **GitHub Actions**. Each push to `main` rebuilds and deploys.
 
+**Settings:** when the build includes `TMDB_KEY`, the TMDB key box is hidden and the site always uses that key. When it doesn't (a local copy, or no secret set), the box shows so you can paste a key.
+
 **Local copy:** opening `index.html` straight from the repo has no keys filled in, so paste a TMDB key in Settings. Sync is off there. To test the build locally: `FIREBASE_API_KEY=... TMDB_KEY=... node scripts/build.mjs`, then open `dist/index.html`.
 
 ## Privacy and security
