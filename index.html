@@ -250,8 +250,8 @@ footer{color:var(--muted);font-size:.8rem;display:flex;flex-direction:column;gap
   .cast{grid-column:2;flex-wrap:wrap;overflow-x:visible}
   .cells{grid-column:2;grid-template-columns:repeat(6,minmax(0,1fr));gap:10px 2px}
 }
-@media (min-width:940px){
-  .cells{grid-template-columns:repeat(11,minmax(0,1fr));gap:6px 2px}
+@media (min-width:1000px){
+  .cells{grid-template-columns:repeat(12,minmax(0,1fr));gap:6px 2px}
 }
 @media (min-width:900px){
   .long{display:inline}.short{display:none}
@@ -399,16 +399,17 @@ const SERVICES = [
   {id:'peacock',     label:'Peacock',     short:'Peacock',    mono:'Pk',                              ids:[],       name:/^peacock/i},
   {id:'paramount',   label:'Paramount+',  short:'Paramount+', mono:'P+',                              ids:[],       name:/^paramount/i},
   {id:'prime',       label:'Prime Video', short:'Prime',      mono:'Pv',                              ids:[9,2100], name:/^amazon prime video/i, onlyIncluded:true},
-  {id:'crunchyroll', label:'Crunchyroll', short:'Crunchy',    mono:'Cr',                              ids:[283],    name:/^crunchyroll/i}
+  {id:'crunchyroll', label:'Crunchyroll', short:'Crunchy',    mono:'Cr',                              ids:[283],    name:/^crunchyroll/i},
+  {id:'starz',       label:'Starz',       short:'Starz',      mono:'St',                              ids:[43],     name:/^starz/i}
 ];
 // Tile colours for the letter fallback. These only show while a TMDB logo is missing.
-const TILE = {disney:'#1B4DD6',hulu:'#14A265',hbo:'#6B35D9',netflix:'#D81F26',youtubetv:'#E0283C',ytpremium:'#A3162F',apple:'#2B2B33',peacock:'#C99A00',paramount:'#1E6BE6',prime:'#0F79AF',crunchyroll:'#E8691A'};
+const TILE = {disney:'#1B4DD6',hulu:'#14A265',hbo:'#6B35D9',netflix:'#D81F26',youtubetv:'#E0283C',ytpremium:'#A3162F',apple:'#2B2B33',peacock:'#C99A00',paramount:'#1E6BE6',prime:'#0F79AF',crunchyroll:'#E8691A',starz:'#0A7C7A'};
 // Where a lit cell sends you. TMDB can say a service carries a title but has no link to the title's own page,
 // so each service opens its own search for the title. Edit a line here if a service changes its address.
 // Each service's own front page. On a phone with the app installed these links usually open the app.
 const HOME = {disney:'https://www.disneyplus.com/', hulu:'https://www.hulu.com/', hbo:'https://play.hbomax.com/', netflix:'https://www.netflix.com/',
   youtubetv:'https://tv.youtube.com/', ytpremium:'https://www.youtube.com/', apple:'https://tv.apple.com/', peacock:'https://www.peacocktv.com/',
-  paramount:'https://www.paramountplus.com/', prime:'https://www.amazon.com/gp/video/storefront', crunchyroll:'https://www.crunchyroll.com/'};
+  paramount:'https://www.paramountplus.com/', prime:'https://www.amazon.com/gp/video/storefront', crunchyroll:'https://www.crunchyroll.com/', starz:'https://www.starz.com/'};
 const SEARCH = {
   disney:      q => 'https://www.disneyplus.com/search/'+q,
   hulu:        q => 'https://www.hulu.com/search?q='+q,
@@ -420,7 +421,8 @@ const SEARCH = {
   peacock:     q => 'https://www.peacocktv.com/search?q='+q,
   paramount:   q => 'https://www.paramountplus.com/search/?q='+q,
   prime:       q => 'https://www.amazon.com/s?k='+q+'&i=instant-video',
-  crunchyroll: q => 'https://www.crunchyroll.com/search?q='+q
+  crunchyroll: q => 'https://www.crunchyroll.com/search?q='+q,
+  starz:       q => 'https://www.starz.com/us/en/search?query='+q
 };
 const REGIONS = {US:'United States',CA:'Canada',GB:'United Kingdom',AU:'Australia',DE:'Germany',FR:'France',ES:'Spain',IT:'Italy',MX:'Mexico',BR:'Brazil',JP:'Japan',IN:'India'};
 
@@ -1052,7 +1054,7 @@ const SAMPLE = [
   {h:{demo:1,media_type:'tv',    name:'Starlit Dojo',        first_air_date:'2023-04-07', vote_average:8.4, overview:'A shy student joins a night-school martial arts club that only meets under a full moon, and learns its masters are guarding more than a tradition.', cast:[{name:'Haruka Ienaga',character:'Mio'},{name:'Benedikt Aalto',character:'Master Sora'}]}, prov:{flatrate:[P(283,'Crunchyroll')]}},
   {h:{demo:1,media_type:'movie', title:'Paper Kingdoms',     release_date:'2016-06-24',   vote_average:6.9, overview:'Two rival origami artists compete for a commission that will decide which of their families keeps the family workshop.', cast:[{name:'Odalys Marchetti',character:'Cosima'},{name:'Rennick Abara',character:'Julian'},{name:'Petra Lindqvist',character:'Aunt Edda'}]}, prov:{flatrate:[P(350,'Apple TV Plus')]}},
   {h:{demo:1,media_type:'tv',    name:'Night Shift Kitchen', first_air_date:'2020-09-18', vote_average:7.7, overview:'The overnight crew of a downtown diner trade stories, secrets and bad coffee while the city sleeps.', cast:[{name:'Marisol Thackeray',character:'Dot'},{name:'Imran Vestergaard',character:'Cal'}]}, prov:{flatrate:[P(1899,'HBO Max'),P(2528,'YouTube TV'),P(188,'YouTube Premium')]}},
-  {h:{demo:1,media_type:'movie', title:'Salt Road',          release_date:'2024-02-02',   vote_average:7.0, overview:'A truck driver crossing a salt flat picks up a hitchhiker who claims to know where the road ends.', cast:[{name:'Anselm Okonkwo-Rhee',character:'Dale'}]}, prov:{}}
+  {h:{demo:1,media_type:'movie', title:'Salt Road',          release_date:'2024-02-02',   vote_average:7.0, overview:'A truck driver crossing a salt flat picks up a hitchhiker who claims to know where the road ends.', cast:[{name:'Anselm Okonkwo-Rhee',character:'Dale'}]}, prov:{flatrate:[P(43,'Starz')]}}
 ];
 
 /* ---------- Settings ---------- */

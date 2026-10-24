@@ -6,11 +6,11 @@ Search a movie or show and see which of **your** streaming services carry it.
 
 *Sample data with invented titles. Service logos appear after you add a TMDB key.*
 
-Which Service is a single web page. Search a title and each result shows the description, a row of eleven services, and the cast. Services that carry the title are **lit** with a ✓, a few get a **$** when you can only rent or buy the title there, and the rest are dimmed. Select a lit service to search for the title on that service, or select an actor to see their biography and filmography. No server, no build step, no dependencies.
+Which Service is a single web page. Search a title and each result shows the description, a row of twelve services, and the cast. Services that carry the title are **lit** with a ✓, a few get a **$** when you can only rent or buy the title there, and the rest are dimmed. Select a lit service to search for the title on that service, or select an actor to see their biography and filmography. No server, no build step, no dependencies.
 
 ## Services
 
-Disney+, Hulu, HBO Max, Netflix, YouTube TV, YouTube Premium, Apple TV+, Peacock, Paramount+, Prime Video and Crunchyroll.
+Disney+, Hulu, HBO Max, Netflix, YouTube TV, YouTube Premium, Apple TV+, Peacock, Paramount+, Prime Video, Crunchyroll and Starz.
 
 Prime Video and YouTube Premium light up only when the title is **included** with that subscription. Renting or buying on Amazon Video or YouTube does not light them. Apple TV+ also shows a **$** for titles you can rent or buy in the Apple TV store.
 
@@ -49,11 +49,11 @@ python3 -m http.server
 
 ## Using it
 
-- **Search tab:** type a title and press Enter. Each result has a description (select **More** for the full text), a row of the eleven services, and the top cast.
+- **Search tab:** type a title and press Enter. Each result has a description (select **More** for the full text), a row of the twelve services, and the top cast.
 - **Services row:** lit services are links that open the service's search for the title. Dimmed services are not links.
 - **Queue:** choose **Add to queue** on a result to save it to the end of your list. The Queue tab keeps your order (top is next), and you can move a title with **Top**, **Up** and **Down**. **Mark watched** moves it to a Watched section at the bottom, and **Mark unwatched** puts it back on top. Each time you open the tab it re-checks where every title streams. The queue is saved in this browser only and needs a TMDB key.
 - **Cast:** select a name to open their person page: photo, basic facts (born, birthplace, known for), biography, and a filmography you can filter to movies or TV. Select a credit to search where it streams. The browser Back button returns to your results.
-- **Services tab:** the eleven services with logos, and what the lit, $ and dimmed marks mean.
+- **Services tab:** the twelve services with logos, and what the lit, $ and dimmed marks mean.
 - **Sync:** the queue is stored per browser. In Settings, **Copy sync code** makes a code on one device, and **Import code** on another device replaces its queue with it (titles, order, watched, region). The code never includes your TMDB key. It is a manual copy and paste, not automatic syncing, because the app has no server.
 - **Key box:** once a working key is saved, Settings shows only **Replace key**, **Remove key** and **Use sample data**. Choose **Replace key** to show the paste box again, or **Cancel** to hide it.
 - **Settings tab:** the TMDB key, region, "Only show titles I can watch", .
