@@ -270,6 +270,7 @@ a.ci:hover .svc{text-decoration:underline}
 .newlist input{flex:1 1 200px;min-width:0;height:48px;background:var(--surface);color:var(--ink);border:2px solid var(--line);border-radius:12px;padding:0 14px;font-size:1rem}
 .newlist input:focus-visible{border-color:var(--focus);outline:none}
 .newlist .primary,.newlist .ghost{min-height:48px;padding:0 20px;border-radius:12px}
+.listbrief{margin:0;color:var(--muted);font-size:.95rem;overflow-wrap:anywhere}.listbrief .linkbtn{min-height:44px;padding:0 6px}
 .listinfo{display:flex;flex-direction:column;gap:10px;background:var(--surface);border:1px solid var(--line);border-radius:16px;padding:14px 16px}
 .listinfo .members{margin:0;display:flex;flex-direction:column;gap:2px;overflow-wrap:anywhere}
 .listinfo .members span{color:var(--muted);font-size:.95rem}
@@ -373,20 +374,8 @@ footer{color:var(--muted);font-size:.8rem;display:flex;flex-direction:column;gap
   <div class="pane" id="paneQueue" role="tabpanel" aria-labelledby="tabQueue" hidden>
     <section class="listbar" aria-label="Queues">
       <div class="chips" id="listChips" role="group" aria-label="Choose a queue"></div>
-      <form class="newlist" id="newListForm" hidden>
-        <label class="sr" for="newListName">Name for the shared queue</label>
-        <input id="newListName" maxlength="40" placeholder="Name, for example Movie night" autocomplete="off" enterkeyhint="done">
-        <button type="submit" class="primary">Create</button>
-        <button type="button" class="ghost" id="newListCancel">Cancel</button>
-      </form>
-      <div class="listinfo" id="listInfo" hidden></div>
-      <form class="newlist" id="renameForm" hidden>
-        <label class="sr" for="renameName">New name for the shared queue</label>
-        <input id="renameName" maxlength="40" autocomplete="off" enterkeyhint="done">
-        <button type="submit" class="primary">Save name</button>
-        <button type="button" class="ghost" id="renameCancel">Cancel</button>
-      </form>
-      <p class="keymsg" id="listMsg" role="status" aria-live="polite"></p>
+      <p class="listbrief" id="listBrief" hidden><span id="listBriefText"></span> <button type="button" class="linkbtn" id="manageList">Manage in Settings</button></p>
+      <p class="keymsg" id="listMsgQ" role="status" aria-live="polite"></p>
     </section>
     <section class="card" id="joinCard" hidden aria-live="polite"></section>
     <div class="queuehead"><p class="status" id="queueStatus" role="status" aria-live="polite"></p>
@@ -421,6 +410,26 @@ footer{color:var(--muted);font-size:.8rem;display:flex;flex-direction:column;gap
   </div>
 
   <div class="pane" id="paneSettings" role="tabpanel" aria-labelledby="tabSettings" hidden>
+    <section class="card" id="sharedCard" aria-labelledby="sharedHead">
+      <h2 id="sharedHead">Shared queues</h2>
+      <p id="sharedHint">Choose a shared queue on the Queue tab to invite people, rename it or leave it here.</p>
+      <div class="keyactions"><button type="button" class="ghost" id="newListSet" hidden>+ New shared queue</button><button type="button" class="ghost" id="listSignInSet" hidden>Sign in to share queues</button></div>
+      <form class="newlist" id="newListForm" hidden>
+        <label class="sr" for="newListName">Name for the shared queue</label>
+        <input id="newListName" maxlength="40" placeholder="Name, for example Movie night" autocomplete="off" enterkeyhint="done">
+        <button type="submit" class="primary">Create</button>
+        <button type="button" class="ghost" id="newListCancel">Cancel</button>
+      </form>
+      <div class="listinfo" id="listInfo" hidden></div>
+      <form class="newlist" id="renameForm" hidden>
+        <label class="sr" for="renameName">New name for the shared queue</label>
+        <input id="renameName" maxlength="40" autocomplete="off" enterkeyhint="done">
+        <button type="submit" class="primary">Save name</button>
+        <button type="button" class="ghost" id="renameCancel">Cancel</button>
+      </form>
+      <p class="keymsg" id="listMsg" role="status" aria-live="polite"></p>
+    </section>
+
     <section id="keyCard" class="card" aria-labelledby="keyHead">
       <h2 id="keyHead">TMDB key</h2>
       <p id="keySaved" class="keysaved" hidden><span class="badge in" aria-hidden="true">&#10003;</span> <span id="keySavedText">A working key is saved on this device.</span></p>
@@ -1078,7 +1087,7 @@ const newListId = () => { const a = new Uint8Array(16); crypto.getRandomValues(a
 const LISTENERS = {}, listTimers = {};
 let picking = false;   // the creator is choosing who takes over before leaving
 let armed = '';   // which two-step button is waiting for a second tap: 'leave' or 'delete'
-const listMsg = (t, kind) => { const m = $('listMsg'); m.textContent = t; m.className = 'keymsg' + (kind ? ' '+kind : ''); };
+const listMsg = (t, kind) => { ['listMsg','listMsgQ'].forEach(id => { const m = $(id); m.textContent = t; m.className = 'keymsg' + (kind ? ' '+kind : ''); }); };
 const inviteLink = id => location.origin + location.pathname + '#join=' + id;
 
 function setActive(id){
@@ -1096,8 +1105,13 @@ function renderListBar(){
   h += signed ? '<button type="button" class="chip add" id="newListBtn">+ New shared queue</button>'
               : '<button type="button" class="chip add" id="listSignIn">Sign in to share queues</button>';
   $('listChips').innerHTML = h;
+  $('newListSet').hidden = !signed; $('listSignInSet').hidden = signed;
   const info = $('listInfo'), L = ACTIVE === 'me' ? null : LISTS[ACTIVE];
+  $('sharedHint').hidden = !!L;
+  $('listBrief').hidden = !L;
   if (!L){ info.hidden = true; info.innerHTML = ''; return; }
+  { const me0 = CLOUD.user && CLOUD.user.uid;
+    $('listBriefText').textContent = 'Members: '+(L.members || []).map(u => u === me0 ? 'You' : ((L.memberInfo && L.memberInfo[u] && L.memberInfo[u].n) || 'Someone')).join(', ')+'.'; }
   const me = CLOUD.user && CLOUD.user.uid;
   const names = (L.members || []).map(u => u === me ? 'You' : ((L.memberInfo && L.memberInfo[u] && L.memberInfo[u].n) || 'Someone')).join(', ');
   info.hidden = false;
@@ -1267,10 +1281,13 @@ async function startJoin(id){
 }
 $('listChips').addEventListener('click', e => {
   const b = e.target.closest && e.target.closest('button'); if (!b) return;
-  if (b.id === 'newListBtn'){ $('newListForm').hidden = false; $('newListName').focus(); return; }
+  if (b.id === 'newListBtn'){ showTab('settings'); $('newListForm').hidden = false; $('newListName').focus(); return; }
   if (b.id === 'listSignIn'){ showTab('account'); return; }
   const id = b.getAttribute('data-list'); if (id) setActive(id);
 });
+$('manageList').addEventListener('click', () => { showTab('settings'); $('sharedCard').scrollIntoView({block:'start'}); });
+$('newListSet').addEventListener('click', () => { $('newListForm').hidden = false; $('newListName').focus(); });
+$('listSignInSet').addEventListener('click', () => showTab('account'));
 $('listInfo').addEventListener('click', e => {
   const nb = e.target.closest && e.target.closest('[data-newowner]');
   if (nb){ picking = false; leaveList(ACTIVE, nb.getAttribute('data-newowner')); return; }
