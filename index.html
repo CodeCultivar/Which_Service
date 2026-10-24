@@ -249,8 +249,15 @@ a.ci:hover .svc{text-decoration:underline}
 .mini{grid-column:1 / -1;display:none;flex-wrap:wrap;gap:6px 14px;list-style:none;margin:8px 0 0;padding:0;font-size:.85rem;font-weight:600}
 .mini li{display:flex;align-items:center;gap:6px}
 .mini .none{color:var(--muted);font-weight:500}
-.compact .cells{display:none}
-.compact .mini{display:flex}
+.qtoggle{display:inline-flex;align-items:center;gap:10px;max-width:100%;min-height:44px;padding:0;background:none;border:0;color:inherit;font:inherit;letter-spacing:inherit;text-align:left;cursor:pointer;touch-action:manipulation}
+.qtoggle .chev{flex:none;width:9px;height:9px;border-right:2px solid var(--muted);border-bottom:2px solid var(--muted);transform:rotate(45deg) translate(-2px,-2px);transition:transform .15s}
+.qrow.open .qtoggle .chev{transform:rotate(-135deg) translate(-2px,-2px)}
+.qrow .poster{cursor:pointer}
+.qrow:not(.open) .mini{display:flex}
+.qrow:not(.open) :is(.cells,.cast,.qctl,.more,.note,.sr){display:none}
+.qrow:not(.open) .overview{-webkit-line-clamp:2}
+.qrow:not(.open) .poster{width:48px;height:72px;font-size:1.3rem}
+@media (min-width:640px){.qrow:not(.open) .poster{width:64px;height:96px;grid-row:1 / span 2}}
 .chips{display:flex;flex-wrap:wrap;gap:8px}
 .chip{min-height:44px;max-width:100%;padding:0 18px;font:inherit;font-weight:700;color:var(--ink);background:var(--surface);border:2px solid var(--line);border-radius:999px;cursor:pointer;touch-action:manipulation;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .chip:hover{border-color:var(--accent)}
@@ -382,7 +389,7 @@ footer{color:var(--muted);font-size:.8rem;display:flex;flex-direction:column;gap
     </section>
     <section class="card" id="joinCard" hidden aria-live="polite"></section>
     <div class="queuehead"><p class="status" id="queueStatus" role="status" aria-live="polite"></p>
-      <button type="button" class="ghost" id="svcFold" aria-expanded="true" aria-controls="queueList">Hide services</button></div>
+      <button type="button" class="ghost" id="foldAll" aria-controls="queueList">Expand all</button></div>
     <ol class="results" id="queueList"></ol>
   </div>
 
@@ -729,18 +736,29 @@ function queueAct(act, k){
   saveQueue();
 }
 let queueSeq = 0, queueRows = new Map();
-function setFold(compact, save){
-  $('queueList').classList.toggle('compact', compact);
-  const b = $('svcFold');
-  b.textContent = compact ? 'Show services' : 'Hide services';
-  b.setAttribute('aria-expanded', String(!compact));
-  if (save) store.set('queueCompact', compact);
+// Each queued title can be opened or closed. Closed rows show the title, a short description and which services have it.
+const OPEN = new Set();
+function syncFoldAll(){
+  const keys = QUEUE.map(keyOf), allOpen = keys.length > 0 && keys.every(k => OPEN.has(k));
+  const b = $('foldAll');
+  b.textContent = allOpen ? 'Collapse all' : 'Expand all';
+  b.hidden = !keys.length;
 }
-$('svcFold').addEventListener('click', () => setFold(!$('queueList').classList.contains('compact'), true));
-setFold(!!store.get('queueCompact', false), false);
+function toggleRow(li){
+  const k = li.getAttribute('data-key'), open = !OPEN.has(k);
+  if (open) OPEN.add(k); else OPEN.delete(k);
+  li.classList.toggle('open', open);
+  const t = li.querySelector('.qtoggle'); if (t) t.setAttribute('aria-expanded', String(open));
+  syncFoldAll();
+}
+$('foldAll').addEventListener('click', () => {
+  const keys = QUEUE.map(keyOf), allOpen = keys.every(k => OPEN.has(k));
+  keys.forEach(k => allOpen ? OPEN.delete(k) : OPEN.add(k));
+  paintQueue();
+});
 function paintQueue(focusKey, focusAct){
   const list = $('queueList');
-  if (!QUEUE.length){ list.innerHTML = ''; setQueueStatus(ACTIVE === 'me' ? 'Your queue is empty. Search for a title and choose “Add to queue”.' : 'This shared queue is empty. Search for a title and choose “Add to '+listName()+'”.'); return; }
+  if (!QUEUE.length){ list.innerHTML = ''; syncFoldAll(); setQueueStatus(ACTIVE === 'me' ? 'Your queue is empty. Search for a title and choose “Add to queue”.' : 'This shared queue is empty. Search for a title and choose “Add to '+listName()+'”.'); return; }
   const rowsQ = QUEUE.map(h => queueRows.get(keyOf(h)) || {h, prov:undefined});
   rowsQ.forEach(r => { r.h = QUEUE.find(x => keyOf(x) === keyOf(r.h)); rowHtml(r, 'queue'); });   // refreshes rank
   const part = a => a.map(r => rowHtml(r, 'queue')).join('');
@@ -749,6 +767,7 @@ function paintQueue(focusKey, focusAct){
   const onNow = t.filter(r => r.rank < 2).length;
   setQueueStatus(t.length+' to watch'+(t.length ? ', '+onNow+' on your services' : '')+(w.length ? '. '+w.length+' watched.' : '.'));
   list.querySelectorAll('.cast').forEach(u => { const c = castCache.get(u.getAttribute('data-key')); if (c) u.innerHTML = castChips(c); });
+  syncFoldAll();
   if (focusKey){   // keep keyboard focus on the same control after a move
     let el = list.querySelector('[data-act="'+focusAct+'"][data-key="'+focusKey+'"]:not(:disabled)')
       || list.querySelector('[data-key="'+focusKey+'"].qact:not(:disabled)');
@@ -773,6 +792,8 @@ document.addEventListener('click', e => {
   if (b) toggleQueue(b.getAttribute('data-key'));
 });
 $('queueList').addEventListener('click', e => {
+  const tg = e.target.closest && e.target.closest('.qtoggle, .poster');
+  if (tg){ const li = tg.closest('.qrow'); if (li) toggleRow(li); return; }
   const m = e.target.closest && e.target.closest('.more');
   if (m){
     const p = m.previousElementSibling, open = p.classList.toggle('open');
@@ -825,9 +846,10 @@ function rowHtml(r, ctx){
     ? '<p class="overview">'+esc(ov)+'</p>'+(ov.length > 230 ? '<button type="button" class="linkbtn more" aria-expanded="false">More</button>' : '')
     : '<p class="overview empty">No description available.</p>';
   const cast = h.demo ? castChips(h.cast) : castChips(castCache.get(keyOf(h)));
-  return '<li class="row'+(ctx === 'queue' && h.watched ? ' watched' : '')+'">'
+  const isQ = ctx === 'queue', open = isQ && OPEN.has(keyOf(h));
+  return '<li class="row'+(isQ ? ' qrow' : '')+(open ? ' open' : '')+(isQ && h.watched ? ' watched' : '')+'"'+(isQ ? ' data-key="'+esc(keyOf(h))+'"' : '')+'>'
     +'<div class="poster'+(h.poster_path ? '' : ' noimg')+'" style="--h:'+hue(title)+'">'+poster+'</div>'
-    +'<div class="info"><h3>'+esc(title)+'</h3>'
+    +'<div class="info"><h3>'+(q ? '<button type="button" class="qtoggle" aria-expanded="'+open+'"><span>'+esc(title)+'</span><span class="chev" aria-hidden="true"></span></button>' : esc(title))+'</h3>'
     +'<p class="meta"><span class="kind">'+kind+'</span>'+(year?'<span>'+esc(year)+'</span>':'')+(h.vote_average?'<span>&#9733; '+Number(h.vote_average).toFixed(1)+'</span>':'')+watch+(ctx === 'queue' ? queueCtl(h) : queueBtn(h))+'</p>'
     +overview
     +(r.prov === undefined ? '<p class="note">Could not load where this streams. Search again to retry.</p>' : '')
