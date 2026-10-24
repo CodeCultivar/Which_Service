@@ -376,6 +376,7 @@ footer{color:var(--muted);font-size:.8rem;display:flex;flex-direction:column;gap
   <footer>
     <span>Streaming availability data from JustWatch, provided through TMDB. Service logos from TMDB.</span>
     <span>This product uses the TMDB API but is not endorsed or certified by TMDB.</span>
+    <span id="buildStamp">Build: __BUILD__</span>
   </footer>
 </div>
 
@@ -1223,6 +1224,7 @@ $('useSample').addEventListener('click', () => { enterSample(); showTab('search'
 /* ---------- Boot ---------- */
 renderServices();
 refreshKeyUi();
+(function(){ const el = $('buildStamp'), t = el.textContent.replace('Build: ',''); if (/^__/.test(t)) el.textContent = 'Build: local copy'; })();
 updateQueueUi();
 cloudUi();
 cloudBoot();
