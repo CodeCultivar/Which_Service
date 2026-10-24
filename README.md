@@ -56,7 +56,8 @@ python3 -m http.server
 - **Services tab:** the twelve services with logos, and what the lit, $ and dimmed marks mean.
 - **Sign in:** the button at the top right of every page opens the sign-in page. **Sign in with Google** keeps your queue the same on every device you sign in on, automatically. Once signed in, the button shows your first name, and its page has **Sign out**. Only the queue is stored (in a free Firebase project, under your Google account), never your TMDB key. It works from the web address, not from a file opened on your computer.
 - **Key box:** once a working key is saved, Settings shows only **Replace key**, **Remove key** and **Use sample data**. Choose **Replace key** to show the paste box again, or **Cancel** to hide it.
-- **Shared queues:** when you are signed in, the Queue tab has a row of queues: **My queue** and any shared queues. **+ New shared queue** makes one. **Invite** shares a link (or copies it). Whoever opens the link and signs in with Google can join. Everyone in a shared queue can add, reorder, mark watched and remove titles, and changes appear on everyone's screen within a few seconds. **Add to** on a search result adds to the queue you have selected, and **Add to my queue** copies a title from a shared queue into your own. **Rename** lets any member change the queue's name. **Leave** removes you, and the last person to leave deletes the queue. Only the person who created a queue sees **Delete queue**, which deletes it for everyone after a second tap. Treat an invite link like a password: anyone who has it can join. If two people save at the same moment, the last save wins.
+- **Shared queues:** when you are signed in, the Queue tab has a row of queues: **My queue** and any shared queues. **+ New shared queue** makes one. **Invite** shares a link (or copies it). Whoever opens the link and signs in with Google can join. Everyone in a shared queue can add, reorder, mark watched and remove titles, and changes appear on everyone's screen within a few seconds. **Add to** on a search result adds to the queue you have selected, and **Add to my queue** copies a title from a shared queue into your own. **Rename** lets any member change the queue's name. **Leave** removes you (if you created the queue and others are in it, you first pick who takes over), and the last person to leave deletes the queue. Only the person who created a queue sees **Delete queue**, which deletes it for everyone after a second tap. Treat an invite link like a password: anyone who has it can join. If two people save at the same moment, the last save wins.
+- **Compact queue:** the **Hide services** button above the queue collapses each title's row of twelve services into a single line showing only the services that have it. **Show services** brings the full row back. The choice is remembered.
 - **Settings tab:** the TMDB key, region, "Only show titles I can watch", .
 - **Light and dark:** the page follows your system setting.
 
@@ -115,7 +116,9 @@ service cloud.firestore {
         && request.resource.data.members == [request.auth.uid];
       allow update: if request.auth != null && (
         (request.auth.uid in resource.data.members
-          && request.resource.data.owner == resource.data.owner)
+          && (request.resource.data.owner == resource.data.owner
+            || (resource.data.owner == request.auth.uid
+              && request.resource.data.owner in request.resource.data.members)))
         || (request.resource.data.diff(resource.data).affectedKeys().hasOnly(['members', 'memberInfo'])
           && request.auth.uid in request.resource.data.members
           && request.resource.data.members.hasAll(resource.data.members)

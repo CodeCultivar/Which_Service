@@ -116,6 +116,7 @@ select,.ghost{background:var(--surface);border:1px solid var(--line);border-radi
 .lg{position:relative;display:block;line-height:0}
 .logo{width:36px;height:36px;border-radius:10px;object-fit:cover;display:block;background:var(--line)}
 .logo.sz32{width:32px;height:32px;border-radius:9px}
+.logo.sz24{width:24px;height:24px;border-radius:7px;font-size:.6rem}
 .logo.mono{display:grid;place-items:center;color:#fff;font-weight:800;font-size:.85rem;line-height:1}
 .logo[hidden]{display:none}
 
@@ -242,6 +243,14 @@ a.ci:hover .svc{text-decoration:underline}
 .keyrow input{flex:1 1 220px;min-width:0;background:var(--bg);border:1px solid var(--line);border-radius:12px;padding:12px 14px}
 .keyrow .primary{padding:12px 20px;border-radius:12px}
 .listbar{display:flex;flex-direction:column;gap:12px}
+.queuehead{display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:8px 12px}
+.queuehead .status{margin:0;flex:1 1 220px}
+.queuehead .ghost{min-height:44px;padding:0 16px;border-radius:12px;font-weight:700}
+.mini{grid-column:1 / -1;display:none;flex-wrap:wrap;gap:6px 14px;list-style:none;margin:8px 0 0;padding:0;font-size:.85rem;font-weight:600}
+.mini li{display:flex;align-items:center;gap:6px}
+.mini .none{color:var(--muted);font-weight:500}
+.compact .cells{display:none}
+.compact .mini{display:flex}
 .chips{display:flex;flex-wrap:wrap;gap:8px}
 .chip{min-height:44px;max-width:100%;padding:0 18px;font:inherit;font-weight:700;color:var(--ink);background:var(--surface);border:2px solid var(--line);border-radius:999px;cursor:pointer;touch-action:manipulation;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .chip:hover{border-color:var(--accent)}
@@ -372,7 +381,8 @@ footer{color:var(--muted);font-size:.8rem;display:flex;flex-direction:column;gap
       <p class="keymsg" id="listMsg" role="status" aria-live="polite"></p>
     </section>
     <section class="card" id="joinCard" hidden aria-live="polite"></section>
-    <p class="status" id="queueStatus" role="status" aria-live="polite"></p>
+    <div class="queuehead"><p class="status" id="queueStatus" role="status" aria-live="polite"></p>
+      <button type="button" class="ghost" id="svcFold" aria-expanded="true" aria-controls="queueList">Hide services</button></div>
     <ol class="results" id="queueList"></ol>
   </div>
 
@@ -719,6 +729,15 @@ function queueAct(act, k){
   saveQueue();
 }
 let queueSeq = 0, queueRows = new Map();
+function setFold(compact, save){
+  $('queueList').classList.toggle('compact', compact);
+  const b = $('svcFold');
+  b.textContent = compact ? 'Show services' : 'Hide services';
+  b.setAttribute('aria-expanded', String(!compact));
+  if (save) store.set('queueCompact', compact);
+}
+$('svcFold').addEventListener('click', () => setFold(!$('queueList').classList.contains('compact'), true));
+setFold(!!store.get('queueCompact', false), false);
 function paintQueue(focusKey, focusAct){
   const list = $('queueList');
   if (!QUEUE.length){ list.innerHTML = ''; setQueueStatus(ACTIVE === 'me' ? 'Your queue is empty. Search for a title and choose “Add to queue”.' : 'This shared queue is empty. Search for a title and choose “Add to '+listName()+'”.'); return; }
@@ -767,6 +786,12 @@ $('queueList').addEventListener('click', e => {
   paintQueue(act === 'remove' ? null : k, act);
 });
 
+// Compact view of a queued title: only the services that have it, as small logos.
+function miniHtml(cells){
+  const on = cells.filter(c => c.state === 'in' || c.state === 'pay');
+  const items = on.map(c => '<li title="'+esc(c.svc.label+': '+SPOKEN[c.state])+'">'+logoHtml(c.svc,24)+'<span>'+esc(c.svc.short)+(c.state === 'pay' ? ' $' : '')+'</span></li>').join('');
+  return '<ul class="mini" aria-label="Available on">'+(items || '<li class="none">Not on your services</li>')+'</ul>';
+}
 function rowHtml(r, ctx){
   const h = r.h;
   const title = h.title || h.name || 'Untitled';
@@ -808,6 +833,7 @@ function rowHtml(r, ctx){
     +(r.prov === undefined ? '<p class="note">Could not load where this streams. Search again to retry.</p>' : '')
     +'<p class="sr">'+esc(v.text)+'</p></div>'
     +'<ul class="cells">'+cellHtml+'</ul>'
+    +(ctx === 'queue' ? miniHtml(cells) : '')
     +'<ul class="cast" aria-label="Cast" data-key="'+esc(keyOf(h))+'">'+cast+'</ul></li>';
 }
 
@@ -997,13 +1023,14 @@ async function cloudBoot(){
 const isListId = x => typeof x === 'string' && /^[a-f0-9]{32}$/.test(x);
 const newListId = () => { const a = new Uint8Array(16); crypto.getRandomValues(a); return Array.from(a, b => b.toString(16).padStart(2,'0')).join(''); };
 const LISTENERS = {}, listTimers = {};
+let picking = false;   // the creator is choosing who takes over before leaving
 let armed = '';   // which two-step button is waiting for a second tap: 'leave' or 'delete'
 const listMsg = (t, kind) => { const m = $('listMsg'); m.textContent = t; m.className = 'keymsg' + (kind ? ' '+kind : ''); };
 const inviteLink = id => location.origin + location.pathname + '#join=' + id;
 
 function setActive(id){
   if (id !== 'me' && !LISTS[id]) id = 'me';
-  ACTIVE = id; armed = ''; $('renameForm').hidden = true; store.set('active', id);
+  ACTIVE = id; armed = ''; picking = false; $('renameForm').hidden = true; store.set('active', id);
   QUEUE = id === 'me' ? PERSONAL : (LISTS[id].queue || []);
   queueRows = new Map();
   renderListBar(); updateQueueUi(); refreshQueueViews();
@@ -1021,6 +1048,13 @@ function renderListBar(){
   const me = CLOUD.user && CLOUD.user.uid;
   const names = (L.members || []).map(u => u === me ? 'You' : ((L.memberInfo && L.memberInfo[u] && L.memberInfo[u].n) || 'Someone')).join(', ');
   info.hidden = false;
+  if (picking && L.owner === me){
+    const others = (L.members || []).filter(u => u !== me);
+    info.innerHTML = '<p class="members"><strong>Choose who takes over</strong><span>You created “'+esc(L.name)+'”. Pick a member to become its new owner, then you will leave. The new owner is the only one who can delete it.</span></p>'
+      +'<div class="keyactions">'+others.map(u => '<button type="button" class="ghost" data-newowner="'+esc(u)+'">'+esc((L.memberInfo && L.memberInfo[u] && L.memberInfo[u].n) || 'Someone')+'</button>').join('')
+      +'<button type="button" class="ghost" data-lact="cancelpick">Cancel</button></div>';
+    return;
+  }
   info.innerHTML = '<p class="members"><strong>'+esc(L.name)+'</strong><span>Members: '+esc(names)+'</span></p>'
     +'<div class="keyactions"><button type="button" class="ghost" data-lact="invite">Invite</button>'
     +'<button type="button" class="ghost" data-lact="rename">Rename</button>'
@@ -1115,15 +1149,22 @@ async function deleteList(id){
   catch(e){ listMsg('Could not delete the shared queue. Only the person who created it can.', 'err'); return; }
   dropList(id, ''); listMsg('Deleted “'+name+'” for everyone.', 'ok');
 }
-async function leaveList(id){
+async function leaveList(id, newOwner){
   const L = LISTS[id]; if (!L || !CLOUD.user) return;
   const uid = CLOUD.user.uid, ref = FB.fs.doc(FB.db, 'lists', id);
+  const others = (L.members || []).filter(u => u !== uid);
+  if (L.owner === uid && others.length && !others.includes(newOwner)){ picking = true; renderListBar(); return; }
   try{
-    if ((L.members || []).length <= 1 && L.owner === uid) await FB.fs.deleteDoc(ref);
-    else await FB.fs.updateDoc(ref, {members: FB.fs.arrayRemove(uid), ['memberInfo.'+uid]: FB.fs.deleteField()});
+    if (L.owner === uid && !others.length) await FB.fs.deleteDoc(ref);
+    else{
+      const change = {members: FB.fs.arrayRemove(uid), ['memberInfo.'+uid]: FB.fs.deleteField()};
+      if (L.owner === uid) change.owner = newOwner;
+      await FB.fs.updateDoc(ref, change);
+    }
   }catch(e){ listMsg('Could not leave right now. Try again.', 'err'); return; }
-  const name = L.name;
-  dropList(id, ''); listMsg('You left “'+name+'”.', 'ok');
+  const name = L.name, who = newOwner && L.memberInfo && L.memberInfo[newOwner] ? L.memberInfo[newOwner].n : '';
+  dropList(id, '');
+  listMsg('You left “'+name+'”.'+(who ? ' '+who+' is now its owner.' : ''), 'ok');
 }
 // An invite link looks like #join=<id>. It is remembered so it survives signing in, even through a redirect.
 function routeJoin(){
@@ -1178,9 +1219,15 @@ $('listChips').addEventListener('click', e => {
   const id = b.getAttribute('data-list'); if (id) setActive(id);
 });
 $('listInfo').addEventListener('click', e => {
+  const nb = e.target.closest && e.target.closest('[data-newowner]');
+  if (nb){ picking = false; leaveList(ACTIVE, nb.getAttribute('data-newowner')); return; }
   const b = e.target.closest && e.target.closest('[data-lact]'); if (!b) return;
   const act = b.getAttribute('data-lact'), L = LISTS[ACTIVE];
   if (!L) return;
+  if (act === 'cancelpick'){ picking = false; renderListBar(); return; }
+  if (act === 'leave' && CLOUD.user && L.owner === CLOUD.user.uid && (L.members || []).length > 1){   // the creator must hand over first
+    armed = ''; picking = true; renderListBar(); return;
+  }
   if (act === 'invite'){ armed = ''; shareInvite(); return; }
   if (act === 'rename'){ armed = ''; renderListBar(); $('renameForm').hidden = false; $('renameName').value = L.name; $('renameName').focus(); $('renameName').select(); return; }
   if (armed !== act){ armed = act; renderListBar(); return; }       // leave and delete both need a second tap
