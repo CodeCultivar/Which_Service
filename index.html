@@ -219,14 +219,6 @@ a.ci:hover .svc{text-decoration:underline}
 .keyrow input{flex:1 1 220px;min-width:0;background:var(--bg);border:1px solid var(--line);border-radius:12px;padding:12px 14px}
 .keyrow .primary{padding:12px 20px;border-radius:12px}
 .syncbtn{min-height:48px;padding:0 22px;border-radius:14px}
-.manual{display:flex;flex-direction:column;gap:12px}
-.manual summary{cursor:pointer;font-weight:600;color:var(--link);min-height:44px;display:flex;align-items:center}
-.syncrow{display:flex}
-.syncrow .primary,.syncrow .ghost{min-height:48px;padding:0 22px;border-radius:14px}
-.syncrow .ghost{font-weight:700}
-#syncBox{width:100%;box-sizing:border-box;background:var(--surface);color:var(--ink);border:2px solid var(--line);border-radius:12px;padding:12px;font:.85rem/1.4 ui-monospace,SFMono-Regular,Menlo,monospace;resize:vertical;word-break:break-all}
-#syncBox::placeholder{word-break:normal;color:var(--muted)}
-#syncBox:focus-visible{border-color:var(--focus);outline:none}
 .keysaved{display:flex;align-items:center;gap:10px;margin:0;font-weight:600}
 .keysaved[hidden]{display:none}
 .keysaved .badge{position:static}
@@ -378,15 +370,6 @@ footer{color:var(--muted);font-size:.8rem;display:flex;flex-direction:column;gap
         <button type="button" class="ghost" id="cloudOut" hidden>Sign out</button>
       </div>
       <p class="keymsg" id="cloudMsg" role="status" aria-live="polite"></p>
-      <details class="manual">
-        <summary>Use a sync code instead</summary>
-        <p>Copy a code here and paste it into Settings on another device. Importing replaces that device's queue. The code holds your queue and region only.</p>
-        <div class="syncrow"><button type="button" class="ghost" id="syncCopy">Copy sync code</button></div>
-        <label class="sr" for="syncBox">Sync code</label>
-        <textarea id="syncBox" rows="3" placeholder="Paste a sync code from another device" spellcheck="false" autocapitalize="off" autocomplete="off"></textarea>
-        <div class="syncrow"><button type="button" class="ghost" id="syncImport">Import code</button></div>
-        <p class="keymsg" id="syncMsg" role="status" aria-live="polite"></p>
-      </details>
     </section>
   </div>
 
@@ -785,52 +768,12 @@ function setStatus(t, mode){
   s.classList.toggle('err', mode === true || mode === 'err');
   s.classList.toggle('busy', mode === 'busy');
 }
-/* ---------- Sync code (copy on one device, paste on another) ---------- */
-const b64 = bytes => { let s = ''; bytes.forEach(b => s += String.fromCharCode(b)); return btoa(s).replace(/\+/g,'-').replace(/\//g,'_').replace(/=+$/,''); };
-const unb64 = t => Uint8Array.from(atob(t.replace(/-/g,'+').replace(/_/g,'/')), c => c.charCodeAt(0));
-async function pipe(bytes, Ctor, kind){
-  const st = new Blob([bytes]).stream().pipeThrough(new Ctor(kind));
-  return new Uint8Array(await new Response(st).arrayBuffer());
-}
+/* ---------- Queue packing (used by cloud sync) ---------- */
 const packQueue = () => QUEUE.map(h => ({id:h.id, m:h.media_type, t:h.title||undefined, n:h.name||undefined, d:h.release_date||h.first_air_date||undefined,
   p:h.poster_path||undefined, o:(h.overview||'').slice(0,260)||undefined, v:h.vote_average||undefined, w:h.watched ? 1 : undefined}));
 const unpackQueue = arr => arr.filter(x => x && Number.isInteger(x.id) && (x.m === 'movie' || x.m === 'tv')).map(x => ({
   id:x.id, media_type:x.m, title:x.t, name:x.n, release_date:x.m === 'movie' ? x.d : undefined, first_air_date:x.m === 'tv' ? x.d : undefined,
   poster_path:typeof x.p === 'string' && /^\/[\w.-]+$/.test(x.p) ? x.p : undefined, overview:typeof x.o === 'string' ? x.o : '', vote_average:Number(x.v)||undefined, watched:!!x.w}));
-async function makeSyncCode(){
-  const items = packQueue();
-  const bytes = new TextEncoder().encode(JSON.stringify({v:1, region:REGION, q:items}));
-  if (typeof CompressionStream === 'function'){ try{ return 'WS1z.'+b64(await pipe(bytes, CompressionStream, 'gzip')); }catch(e){} }
-  return 'WS1.'+b64(bytes);
-}
-async function readSyncCode(text){
-  const t = (text||'').trim().replace(/\s+/g,'');
-  const m = /^WS1(z?)\.([A-Za-z0-9_-]+)$/.exec(t);
-  if (!m) throw new Error('That does not look like a sync code. Copy the whole code from the other device.');
-  let bytes = unb64(m[2]);
-  if (m[1]){ if (typeof DecompressionStream !== 'function') throw new Error('This browser cannot read compressed sync codes.'); bytes = await pipe(bytes, DecompressionStream, 'gzip'); }
-  const d = JSON.parse(new TextDecoder().decode(bytes));
-  if (!d || d.v !== 1 || !Array.isArray(d.q)) throw new Error('That sync code is not supported by this version.');
-  const q = unpackQueue(d.q);
-  return {q, region: REGIONS[d.region] ? d.region : null};
-}
-function syncMsg(t, kind){ const m = $('syncMsg'); m.textContent = t; m.className = 'keymsg' + (kind ? ' '+kind : ''); }
-$('syncCopy').addEventListener('click', async () => {
-  const code = await makeSyncCode();
-  $('syncBox').value = code;
-  try{ await navigator.clipboard.writeText(code); syncMsg('Copied. Paste it into Settings on your other device and choose Import.', 'ok'); }
-  catch(e){ $('syncBox').select(); syncMsg('Select the code above and copy it, then paste it on your other device.', 'ok'); }
-});
-$('syncImport').addEventListener('click', async () => {
-  try{
-    const r = await readSyncCode($('syncBox').value);
-    QUEUE = r.q.slice().sort((a,b) => (a.watched?1:0) - (b.watched?1:0));
-    if (r.region && r.region !== REGION){ REGION = r.region; store.set('region', REGION); const sel = $('region'); if (sel) sel.value = REGION; provCache.clear(); }
-    saveQueue(); queueRows = new Map();
-    $('syncBox').value = '';
-    syncMsg('Imported '+QUEUE.length+(QUEUE.length === 1 ? ' title' : ' titles')+'. Open the Queue tab to see them.', 'ok');
-  }catch(e){ syncMsg(e && e.message ? e.message : 'Could not read that code.', 'err'); }
-});
 
 /* ---------- Automatic sync (Firebase: Google sign-in + Firestore) ---------- */
 // These identify the project and are meant to be public. The Firestore rules limit each document to its own signed-in user.
