@@ -103,6 +103,11 @@ select,.ghost{background:var(--surface);border:1px solid var(--line);border-radi
 .mine-body[hidden]{display:none}
 .svc-list{list-style:none;margin:0;padding:0;display:flex;flex-wrap:wrap;gap:8px}
 .svc-item:hover{border-color:var(--muted)}
+.svc-off .svc-item{opacity:.45}
+.mysvcs{list-style:none;margin:12px 0 0;padding:0;display:grid;grid-template-columns:repeat(auto-fill,minmax(210px,1fr));gap:8px}
+.mysvcs label{display:flex;align-items:center;gap:10px;min-height:48px;padding:6px 12px;background:var(--surface);border:1px solid var(--line);border-radius:14px;cursor:pointer;font-weight:600}
+.mysvcs input{width:22px;height:22px;flex:none;accent-color:var(--accent)}
+.mysvcs .lg{display:inline-flex;flex:none}
 .svc-item{text-decoration:none;color:inherit;min-height:48px;display:flex;align-items:center;gap:10px;background:var(--surface);border:1px solid var(--line);border-radius:14px;padding:6px 14px 6px 6px;min-width:0}
 .svc-text{display:flex;flex-direction:column;min-width:0}
 .svc-name{font-weight:600;line-height:1.2;overflow-wrap:anywhere}
@@ -430,6 +435,12 @@ footer{color:var(--muted);font-size:.8rem;display:flex;flex-direction:column;gap
       <p class="keymsg" id="listMsg" role="status" aria-live="polite"></p>
     </section>
 
+    <section class="card" id="mySvcCard" aria-labelledby="mySvcHead">
+      <h2 id="mySvcHead">My services</h2>
+      <p class="hint">Check the services you subscribe to. Unchecked ones are ignored when deciding what you can watch. This is saved with your account, so it follows you to your other devices when you are signed in.</p>
+      <ul class="mysvcs" id="mySvcs"></ul>
+    </section>
+
     <section id="keyCard" class="card" aria-labelledby="keyHead">
       <h2 id="keyHead">TMDB key</h2>
       <p id="keySaved" class="keysaved" hidden><span class="badge in" aria-hidden="true">&#10003;</span> <span id="keySavedText">A working key is saved on this device.</span></p>
@@ -531,6 +542,7 @@ if (HAS_BUILT) store.del('key');
 let KEY = HAS_BUILT ? BUILT_KEY : store.get('key','');
 let REGION = store.get('region','US');
 let ONLY_MINE = store.get('onlyMine', false);
+let OFF = [];                            // ids of services you have switched off in Settings (synced when signed in)
 let LOGOS = store.get('logos', {});      // service id -> TMDB logo path
 let DEMO = !KEY;
 let rows = [];            // [{h, prov}] where prov: object | null (no data) | undefined (failed)
@@ -614,9 +626,13 @@ function logoHtml(svc, size){
   return '<img class="logo sz'+size+'" src="https://image.tmdb.org/t/p/w92'+esc(LOGOS[svc.id])+'" alt="" loading="lazy" onerror="this.hidden=true;this.nextElementSibling.hidden=false">'+mono;
 }
 
+const cleanOff = a => Array.isArray(a) ? SERVICES.map(s => s.id).filter(id => a.includes(id)) : [];
+OFF = cleanOff(store.get('svcOff', []));
 function renderServices(){
+  $('mySvcs').innerHTML = SERVICES.map(s =>
+    '<li><label><input type="checkbox" data-svc="'+s.id+'"'+(OFF.includes(s.id) ? '' : ' checked')+'><span class="lg" aria-hidden="true">'+logoHtml(s,28)+'</span><span>'+esc(s.label)+'</span></label></li>').join('');
   $('svcList').innerHTML = SERVICES.map(s =>
-    '<li><a class="svc-item" href="'+esc(HOME[s.id] || '#')+'" target="_blank" rel="noopener noreferrer" aria-label="Open '+esc(s.label)+'"><span class="lg" aria-hidden="true">'+logoHtml(s,32)+'</span>'
+    '<li'+(OFF.includes(s.id) ? ' class="svc-off"' : '')+'><a class="svc-item" href="'+esc(HOME[s.id] || '#')+'" target="_blank" rel="noopener noreferrer" aria-label="Open '+esc(s.label)+'"><span class="lg" aria-hidden="true">'+logoHtml(s,32)+'</span>'
     +'<span class="svc-text"><span class="svc-name">'+esc(s.label)+'</span>'+(s.sub ? '<span class="svc-sub">'+esc(s.sub)+'</span>' : '')+'</span></a></li>').join('');
 }
 
@@ -629,7 +645,7 @@ const payOf = prov => [].concat(prov.rent||[], prov.buy||[]);
 
 function cellState(svc, prov){
   if (prov === undefined) return 'unk';
-  if (prov === null) return 'none';
+  if (prov === null || OFF.includes(svc.id)) return 'none';
   if (incOf(prov).some(p => matches(p, svc))) return 'in';
   if (!svc.onlyIncluded && payOf(prov).some(p => matches(p, svc))) return 'pay';   // onlyIncluded: show only titles that come with the subscription
   return 'none';
@@ -1028,6 +1044,21 @@ function applyRemote(items, rev){
   CLOUD.rev = rev; store.set('cloudRev', rev);
   store.set('queue', PERSONAL); updateQueueUi(); refreshQueueViews();
 }
+// Which services you have switched off: kept on this device, and in your account when signed in.
+function applyOff(a){
+  OFF = cleanOff(a); store.set('svcOff', OFF); renderServices();
+  if (rows.length) render();
+  if (!$('paneQueue').hidden) renderQueue();
+}
+let prefTimer = 0;
+function prefsPush(){
+  if (!CLOUD.user || !CLOUD.merged || !FB) return;
+  clearTimeout(prefTimer);
+  prefTimer = setTimeout(async () => {
+    try{ await FB.fs.setDoc(CLOUD.ref, {svcOff: OFF}, {merge:true}); cloudMsg('Synced.', 'ok'); }
+    catch(e){ cloudMsg('Could not save your services to the cloud. They are kept on this device.', 'err'); }
+  }, 400);
+}
 let pushTimer = 0;
 function syncPush(){
   if (!CLOUD.user || !CLOUD.merged || !FB) return;
@@ -1055,11 +1086,13 @@ function startListening(user){
       const merged = mergeQueues(remote, PERSONAL);
       const sig = a => a.map(x => keyOf(x)+(x.watched ? '!' : '')).join(',');
       const same = !!d && sig(merged) === sig(remote);
+      if (d && Array.isArray(d.svcOff)) applyOff(d.svcOff); else if (OFF.length) prefsPush();
       applyRemote(merged, d ? (d.rev || 0) : 0);
       if (!same) syncPush(); else cloudMsg('Synced.', 'ok');
       setTimeout(processPendingJoin, 0);
       return;
     }
+    if (d && Array.isArray(d.svcOff) && cleanOff(d.svcOff).join() !== OFF.join()) applyOff(d.svcOff);
     if (!d || d.rev === CLOUD.rev) return;          // our own write, or nothing new
     applyRemote(remote, d.rev || 0);
     cloudMsg('Updated from another device.', 'ok');
@@ -1595,6 +1628,15 @@ const SAMPLE = [
 ];
 
 /* ---------- Settings ---------- */
+$('mySvcs').addEventListener('change', e => {
+  const c = e.target.closest && e.target.closest('input[data-svc]'); if (!c) return;
+  const id = c.getAttribute('data-svc');
+  OFF = cleanOff(c.checked ? OFF.filter(x => x !== id) : OFF.concat(id));
+  store.set('svcOff', OFF); prefsPush();
+  $('svcList').querySelectorAll('li').forEach((li, i) => li.classList.toggle('svc-off', OFF.includes(SERVICES[i].id)));
+  if (rows.length) render();
+  if (!$('paneQueue').hidden) renderQueue();
+});
 $('onlyMine').checked = ONLY_MINE;
 $('onlyMine').addEventListener('change', e => { ONLY_MINE = e.target.checked; store.set('onlyMine', ONLY_MINE); if (rows.length) render(); });
 
