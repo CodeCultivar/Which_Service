@@ -161,7 +161,8 @@ select,.ghost{background:var(--surface);border:1px solid var(--line);border-radi
   .qctl .qact{padding:0 6px;white-space:nowrap}
   .qctl [data-act=watch],.qctl [data-act=unwatch]{grid-column:span 3;order:1}
   .qctl [data-act=remove]{grid-column:span 3;order:2}
-  .qctl [data-act=top],.qctl [data-act=up],.qctl [data-act=down]{grid-column:span 2;order:3}.ghost,.tab{min-height:44px}}
+  .qctl [data-act=top],.qctl [data-act=up],.qctl [data-act=down]{grid-column:span 2;order:3}
+  .qctl [data-act=mine]{grid-column:span 6;order:4}.ghost,.tab{min-height:44px}}
 .tab .count{margin-left:6px;font-size:.8rem;font-weight:700;opacity:.85}
 @media (max-width:480px){.tabs{max-width:100%}.tab{padding:8px 10px;font-size:.88rem}.tab .count{margin-left:4px;font-size:.75rem}}
 @media (max-width:340px){.tab{padding:8px 7px;font-size:.82rem}}
@@ -240,6 +241,20 @@ a.ci:hover .svc{text-decoration:underline}
 .keyrow{display:flex;flex-wrap:wrap;gap:8px}
 .keyrow input{flex:1 1 220px;min-width:0;background:var(--bg);border:1px solid var(--line);border-radius:12px;padding:12px 14px}
 .keyrow .primary{padding:12px 20px;border-radius:12px}
+.listbar{display:flex;flex-direction:column;gap:12px}
+.chips{display:flex;flex-wrap:wrap;gap:8px}
+.chip{min-height:44px;max-width:100%;padding:0 18px;font:inherit;font-weight:700;color:var(--ink);background:var(--surface);border:2px solid var(--line);border-radius:999px;cursor:pointer;touch-action:manipulation;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.chip:hover{border-color:var(--accent)}
+.chip.on{background:var(--brand);border-color:var(--brand);color:var(--on-brand)}
+.chip.add{border-style:dashed;color:var(--muted)}
+.newlist{display:flex;flex-wrap:wrap;gap:8px}
+.newlist[hidden],.listinfo[hidden]{display:none}
+.newlist input{flex:1 1 200px;min-width:0;height:48px;background:var(--surface);color:var(--ink);border:2px solid var(--line);border-radius:12px;padding:0 14px;font-size:1rem}
+.newlist input:focus-visible{border-color:var(--focus);outline:none}
+.newlist .primary,.newlist .ghost{min-height:48px;padding:0 20px;border-radius:12px}
+.listinfo{display:flex;flex-direction:column;gap:10px;background:var(--surface);border:1px solid var(--line);border-radius:16px;padding:14px 16px}
+.listinfo .members{margin:0;display:flex;flex-direction:column;gap:2px;overflow-wrap:anywhere}
+.listinfo .members span{color:var(--muted);font-size:.95rem}
 .syncbtn{min-height:48px;padding:0 22px;border-radius:14px}
 .keysaved{display:flex;align-items:center;gap:10px;margin:0;font-weight:600}
 .keysaved[hidden]{display:none}
@@ -338,6 +353,18 @@ footer{color:var(--muted);font-size:.8rem;display:flex;flex-direction:column;gap
   </div>
 
   <div class="pane" id="paneQueue" role="tabpanel" aria-labelledby="tabQueue" hidden>
+    <section class="listbar" aria-label="Queues">
+      <div class="chips" id="listChips" role="group" aria-label="Choose a queue"></div>
+      <form class="newlist" id="newListForm" hidden>
+        <label class="sr" for="newListName">Name for the shared queue</label>
+        <input id="newListName" maxlength="40" placeholder="Name, for example Movie night" autocomplete="off" enterkeyhint="done">
+        <button type="submit" class="primary">Create</button>
+        <button type="button" class="ghost" id="newListCancel">Cancel</button>
+      </form>
+      <div class="listinfo" id="listInfo" hidden></div>
+      <p class="keymsg" id="listMsg" role="status" aria-live="polite"></p>
+    </section>
+    <section class="card" id="joinCard" hidden aria-live="polite"></section>
     <p class="status" id="queueStatus" role="status" aria-live="polite"></p>
     <ol class="results" id="queueList"></ol>
   </div>
@@ -606,26 +633,33 @@ function castChips(list){
 }
 
 /* ---------- Queue ---------- */
-let QUEUE = store.get('queue', []);
-if (!Array.isArray(QUEUE)) QUEUE = [];
+let PERSONAL = store.get('queue', []);        // your own queue, kept on this device and synced when signed in
+if (!Array.isArray(PERSONAL)) PERSONAL = [];
+let ACTIVE = 'me';                            // 'me', or the id of the shared queue shown in the Queue tab
+let LISTS = {};                               // shared queues you belong to: id -> {id, name, owner, members, memberInfo, queue, rev}
+let MYLISTS = [];                             // ids of those queues, kept in your user document
+let QUEUE = PERSONAL;                         // the queue the Queue tab and the Add buttons work on right now
+const listName = () => ACTIVE === 'me' ? '' : ((LISTS[ACTIVE] && LISTS[ACTIVE].name) || 'shared queue');
+const qLabel = on => on ? '&#10003; In '+(ACTIVE === 'me' ? 'queue' : esc(listName())) : '+ Add to '+(ACTIVE === 'me' ? 'queue' : esc(listName()));
 const inQueue = h => QUEUE.some(x => keyOf(x) === keyOf(h));
 function queueBtn(h){
   if (h.demo) return '';
   const on = inQueue(h);
-  return '<button type="button" class="qbtn'+(on?' on':'')+'" data-key="'+esc(keyOf(h))+'" aria-pressed="'+on+'">'+(on?'&#10003; In queue':'+ Add to queue')+'</button>';
+  return '<button type="button" class="qbtn'+(on?' on':'')+'" data-key="'+esc(keyOf(h))+'" aria-pressed="'+on+'">'+qLabel(on)+'</button>';
 }
 // The queue is kept in order: titles still to watch first (top is next), then watched ones.
 const todo = () => QUEUE.filter(x => !x.watched);
 function queueCtl(h){
   const k = esc(keyOf(h));
   const b = (act, label, extra) => '<button type="button" class="qact" data-act="'+act+'" data-key="'+k+'"'+(extra||'')+'>'+label+'</button>';
-  if (h.watched) return '<span class="qctl">'+b('unwatch','Mark unwatched')+b('remove','Remove')+'</span>';
+  const mine = ACTIVE === 'me' ? '' : (PERSONAL.some(x => keyOf(x) === keyOf(h)) ? b('mine','&#10003; In my queue',' disabled') : b('mine','+ Add to my queue'));
+  if (h.watched) return '<span class="qctl">'+b('unwatch','Mark unwatched')+b('remove','Remove')+mine+'</span>';
   const t = todo(), i = t.findIndex(x => keyOf(x) === keyOf(h));
   return '<span class="qctl">'+b('watch','&#10003; Mark watched')
     +b('top','&#8679; Top', i === 0 ? ' disabled' : '')
     +b('up','&#8593; Up', i === 0 ? ' disabled' : '')
     +b('down','&#8595; Down', i === t.length-1 ? ' disabled' : '')
-    +b('remove','Remove')+'</span>';
+    +b('remove','Remove')+mine+'</span>';
 }
 function updateQueueUi(){
   const c = $('qCount'), n = todo().length;
@@ -648,13 +682,25 @@ function toggleQueue(k){
     if (b.getAttribute('data-key') !== k) return;
     const on = i < 0;
     b.classList.toggle('on', on); b.setAttribute('aria-pressed', String(on));
-    b.innerHTML = on ? '&#10003; In queue' : '+ Add to queue';
+    b.innerHTML = qLabel(on);
   });
 }
-function saveQueue(){ store.set('queue', QUEUE); updateQueueUi(); syncPush(); }
+function saveQueue(){
+  if (ACTIVE === 'me'){ PERSONAL = QUEUE; store.set('queue', PERSONAL); syncPush(); }
+  else listPush(ACTIVE);
+  updateQueueUi();
+}
 function queueAct(act, k){
   const i = QUEUE.findIndex(x => keyOf(x) === k);
   if (i < 0) return;
+  if (act === 'mine'){            // copy a title from a shared queue into your own
+    if (!PERSONAL.some(x => keyOf(x) === k)){
+      const c = Object.assign({}, QUEUE[i], {watched:false});
+      PERSONAL.splice(PERSONAL.filter(x => !x.watched).length, 0, c);
+      store.set('queue', PERSONAL); syncPush();
+    }
+    return;
+  }
   const [it] = QUEUE.splice(i,1), n = todo().length;
   if (act === 'remove') { /* gone */ }
   else if (act === 'watch'){ it.watched = true; QUEUE.push(it); }
@@ -668,7 +714,7 @@ function queueAct(act, k){
 let queueSeq = 0, queueRows = new Map();
 function paintQueue(focusKey, focusAct){
   const list = $('queueList');
-  if (!QUEUE.length){ list.innerHTML = ''; setQueueStatus('Your queue is empty. Search for a title and choose “Add to queue”.'); return; }
+  if (!QUEUE.length){ list.innerHTML = ''; setQueueStatus(ACTIVE === 'me' ? 'Your queue is empty. Search for a title and choose “Add to queue”.' : 'This shared queue is empty. Search for a title and choose “Add to '+listName()+'”.'); return; }
   const rowsQ = QUEUE.map(h => queueRows.get(keyOf(h)) || {h, prov:undefined});
   rowsQ.forEach(r => { r.h = QUEUE.find(x => keyOf(x) === keyOf(r.h)); rowHtml(r, 'queue'); });   // refreshes rank
   const part = a => a.map(r => rowHtml(r, 'queue')).join('');
@@ -805,7 +851,7 @@ function setStatus(t, mode){
   s.classList.toggle('busy', mode === 'busy');
 }
 /* ---------- Queue packing (used by cloud sync) ---------- */
-const packQueue = () => QUEUE.map(h => ({id:h.id, m:h.media_type, t:h.title||undefined, n:h.name||undefined, d:h.release_date||h.first_air_date||undefined,
+const packQueue = (arr = QUEUE) => arr.map(h => ({id:h.id, m:h.media_type, t:h.title||undefined, n:h.name||undefined, d:h.release_date||h.first_air_date||undefined,
   p:h.poster_path||undefined, o:(h.overview||'').slice(0,260)||undefined, v:h.vote_average||undefined, w:h.watched ? 1 : undefined}));
 const unpackQueue = arr => arr.filter(x => x && Number.isInteger(x.id) && (x.m === 'movie' || x.m === 'tv')).map(x => ({
   id:x.id, media_type:x.m, title:x.t, name:x.n, release_date:x.m === 'movie' ? x.d : undefined, first_air_date:x.m === 'tv' ? x.d : undefined,
@@ -848,6 +894,7 @@ function setAvatar(el, u, nm){
 }
 function cloudUi(){
   const u = CLOUD.user;
+  if (typeof renderListBar === 'function') renderListBar();
   $('cloudUser').hidden = !u; $('cloudSynced').hidden = !u; $('cloudOut').hidden = !u; $('cloudIn').hidden = !!u;
   $('cloudIntro').hidden = !!u;
   $('acctHead').textContent = u ? 'Your account' : 'Sign in';
@@ -877,13 +924,14 @@ function refreshQueueViews(){
   document.querySelectorAll('#results .qbtn').forEach(b => {
     const on = QUEUE.some(x => keyOf(x) === b.getAttribute('data-key'));
     b.classList.toggle('on', on); b.setAttribute('aria-pressed', String(on));
-    b.innerHTML = on ? '&#10003; In queue' : '+ Add to queue';
+    b.innerHTML = qLabel(on);
   });
   if (!$('paneQueue').hidden) renderQueue();
 }
 function applyRemote(items, rev){
-  QUEUE = items; CLOUD.rev = rev; store.set('cloudRev', rev);
-  store.set('queue', QUEUE); updateQueueUi(); refreshQueueViews();
+  PERSONAL = items; if (ACTIVE === 'me') QUEUE = PERSONAL;
+  CLOUD.rev = rev; store.set('cloudRev', rev);
+  store.set('queue', PERSONAL); updateQueueUi(); refreshQueueViews();
 }
 let pushTimer = 0;
 function syncPush(){
@@ -893,7 +941,7 @@ function syncPush(){
     const rev = Date.now();
     try{
       CLOUD.rev = rev; store.set('cloudRev', rev);
-      await FB.fs.setDoc(CLOUD.ref, JSON.parse(JSON.stringify({queue:packQueue(), rev, updated:rev})));
+      await FB.fs.setDoc(CLOUD.ref, JSON.parse(JSON.stringify({queue:packQueue(PERSONAL), rev, updated:rev})), {merge:true});
       cloudMsg('Synced.', 'ok');
     }catch(e){ cloudMsg('Could not save to the cloud. Your queue is kept on this device and will sync on your next change.', 'err'); }
   }, 400);
@@ -905,14 +953,16 @@ function startListening(user){
   CLOUD.unsub = FB.fs.onSnapshot(CLOUD.ref, snap => {
     const d = snap.exists() ? snap.data() : null;
     const remote = d && Array.isArray(d.queue) ? unpackQueue(d.queue) : [];
+    if (!(snap.metadata && snap.metadata.fromCache && !CLOUD.merged)) syncLists(d && Array.isArray(d.lists) ? d.lists.filter(isListId) : []);
     if (!CLOUD.merged){
       if (snap.metadata && snap.metadata.fromCache) return;   // wait for the real copy before merging, so an offline start never overwrites it
       CLOUD.merged = true;
-      const merged = mergeQueues(remote, QUEUE);
+      const merged = mergeQueues(remote, PERSONAL);
       const sig = a => a.map(x => keyOf(x)+(x.watched ? '!' : '')).join(',');
       const same = !!d && sig(merged) === sig(remote);
       applyRemote(merged, d ? (d.rev || 0) : 0);
       if (!same) syncPush(); else cloudMsg('Synced.', 'ok');
+      setTimeout(processPendingJoin, 0);
       return;
     }
     if (!d || d.rev === CLOUD.rev) return;          // our own write, or nothing new
@@ -932,10 +982,194 @@ async function cloudBoot(){
     try{ await FB.auth.getRedirectResult(FB.au); }catch(e){}
     FB.auth.onAuthStateChanged(FB.au, u => {
       if (u) startListening(u);
-      else { if (CLOUD.unsub) CLOUD.unsub(); CLOUD.user = null; CLOUD.merged = false; cloudUi(); }
+      else { if (CLOUD.unsub) CLOUD.unsub(); CLOUD.user = null; CLOUD.merged = false; resetShared(); cloudUi(); }
     });
   }catch(e){ cloudMsg('Could not load sign-in. Check your connection.', 'err'); }
 }
+/* ---------- Shared queues (Firestore: lists/{id}; anyone with the link who is signed in can join) ---------- */
+const isListId = x => typeof x === 'string' && /^[a-f0-9]{32}$/.test(x);
+const newListId = () => { const a = new Uint8Array(16); crypto.getRandomValues(a); return Array.from(a, b => b.toString(16).padStart(2,'0')).join(''); };
+const LISTENERS = {}, listTimers = {};
+let leaveArmed = '';
+const listMsg = (t, kind) => { const m = $('listMsg'); m.textContent = t; m.className = 'keymsg' + (kind ? ' '+kind : ''); };
+const inviteLink = id => location.origin + location.pathname + '#join=' + id;
+
+function setActive(id){
+  if (id !== 'me' && !LISTS[id]) id = 'me';
+  ACTIVE = id; leaveArmed = ''; store.set('active', id);
+  QUEUE = id === 'me' ? PERSONAL : (LISTS[id].queue || []);
+  queueRows = new Map();
+  renderListBar(); updateQueueUi(); refreshQueueViews();
+}
+function renderListBar(){
+  const signed = !!CLOUD.user;
+  const chip = (id, name) => '<button type="button" class="chip'+(ACTIVE === id ? ' on' : '')+'" data-list="'+id+'" aria-pressed="'+(ACTIVE === id)+'" title="'+esc(name)+'">'+esc(name)+'</button>';
+  let h = chip('me', 'My queue');
+  MYLISTS.forEach(id => { const L = LISTS[id]; h += chip(id, L ? L.name : 'Shared queue'); });
+  h += signed ? '<button type="button" class="chip add" id="newListBtn">+ New shared queue</button>'
+              : '<button type="button" class="chip add" id="listSignIn">Sign in to share queues</button>';
+  $('listChips').innerHTML = h;
+  const info = $('listInfo'), L = ACTIVE === 'me' ? null : LISTS[ACTIVE];
+  if (!L){ info.hidden = true; info.innerHTML = ''; return; }
+  const me = CLOUD.user && CLOUD.user.uid;
+  const names = (L.members || []).map(u => u === me ? 'You' : ((L.memberInfo && L.memberInfo[u] && L.memberInfo[u].n) || 'Someone')).join(', ');
+  info.hidden = false;
+  info.innerHTML = '<p class="members"><strong>'+esc(L.name)+'</strong><span>Members: '+esc(names)+'</span></p>'
+    +'<div class="keyactions"><button type="button" class="ghost" data-lact="invite">Invite</button>'
+    +'<button type="button" class="ghost" data-lact="leave">'+(leaveArmed === L.id ? 'Tap again to leave' : 'Leave')+'</button></div>';
+}
+function attachList(id){
+  if (LISTENERS[id] || !FB || !CLOUD.user) return;
+  LISTENERS[id] = FB.fs.onSnapshot(FB.fs.doc(FB.db, 'lists', id), snap => {
+    if (!snap.exists()){ dropList(id, 'A shared queue you were in was deleted.'); return; }
+    const d = snap.data();
+    if (!(d.members || []).includes(CLOUD.user.uid)){ dropList(id, 'You are no longer in “'+(d.name || 'a shared queue')+'”.'); return; }
+    const L = LISTS[id] || (LISTS[id] = {id, rev:-1, queue:[]});
+    L.name = d.name || 'Shared queue'; L.owner = d.owner; L.members = d.members; L.memberInfo = d.memberInfo || {};
+    const changed = (d.rev || 0) !== L.rev;            // our own saves carry the rev we already hold
+    if (changed){ L.queue = unpackQueue(d.queue || []); L.rev = d.rev || 0; if (ACTIVE === id) QUEUE = L.queue; }
+    if (ACTIVE === 'me' && !L.shown && store.get('active', 'me') === id){ L.shown = true; setActive(id); return; }
+    renderListBar();
+    if (ACTIVE === id){ updateQueueUi(); if (changed) refreshQueueViews(); }
+  }, err => { if (err && err.code === 'permission-denied') dropList(id, 'You can’t open that shared queue any more.'); });
+}
+function dropList(id, msg){
+  if (LISTENERS[id]){ try{ LISTENERS[id](); }catch(e){} delete LISTENERS[id]; }
+  delete LISTS[id]; MYLISTS = MYLISTS.filter(x => x !== id);
+  if (ACTIVE === id) setActive('me'); else renderListBar();
+  if (msg) listMsg(msg, 'err');
+  if (CLOUD.user && CLOUD.merged) pushLists();
+}
+function syncLists(ids){
+  MYLISTS = ids.slice();
+  ids.forEach(attachList);
+  Object.keys(LISTENERS).forEach(id => {
+    if (ids.includes(id)) return;
+    try{ LISTENERS[id](); }catch(e){} delete LISTENERS[id]; delete LISTS[id];
+    if (ACTIVE === id) setActive('me');
+  });
+  renderListBar();
+}
+function resetShared(){
+  Object.keys(LISTENERS).forEach(id => { try{ LISTENERS[id](); }catch(e){} delete LISTENERS[id]; });
+  LISTS = {}; MYLISTS = []; setActive('me'); listMsg('');
+}
+async function pushLists(){
+  if (!CLOUD.user || !FB) return;
+  try{ await FB.fs.setDoc(CLOUD.ref, {lists: MYLISTS}, {merge:true}); }
+  catch(e){ listMsg('Could not update your list of shared queues.', 'err'); }
+}
+function listPush(id){
+  clearTimeout(listTimers[id]);
+  listTimers[id] = setTimeout(async () => {
+    const L = LISTS[id];
+    if (!L || !FB) return;
+    const rev = Date.now();
+    try{
+      L.rev = rev;
+      await FB.fs.updateDoc(FB.fs.doc(FB.db, 'lists', id), JSON.parse(JSON.stringify({queue:packQueue(L.queue), rev, updated:rev})));
+      listMsg('Saved to “'+L.name+'”.', 'ok');
+    }catch(e){ listMsg('Could not save to the shared queue. Check your connection and try again.', 'err'); }
+  }, 400);
+}
+async function createList(name){
+  const uid = CLOUD.user.uid, id = newListId(), now = Date.now();
+  const info = {[uid]:{n:acctName(CLOUD.user)}};
+  try{
+    await FB.fs.setDoc(FB.fs.doc(FB.db, 'lists', id), {name, owner:uid, members:[uid], memberInfo:info, queue:[], rev:now, updated:now});
+  }catch(e){ listMsg('Could not create the shared queue. Check that the Firestore rules were updated.', 'err'); return; }
+  LISTS[id] = {id, name, owner:uid, members:[uid], memberInfo:info, queue:[], rev:now, shown:true};
+  MYLISTS.push(id); attachList(id); setActive(id); pushLists();
+  listMsg('Created “'+name+'”. Choose Invite to add people.', 'ok');
+}
+async function shareInvite(){
+  const L = LISTS[ACTIVE]; if (!L) return;
+  const url = inviteLink(L.id), text = 'Join my shared queue “'+L.name+'” on Which Service';
+  if (navigator.share){
+    try{ await navigator.share({title:'Which Service', text, url}); return; }
+    catch(e){ if (e && e.name === 'AbortError') return; }
+  }
+  try{ await navigator.clipboard.writeText(url); listMsg('Invite link copied. Anyone you send it to can join once they sign in, so share it only with people you trust.', 'ok'); }
+  catch(e){ listMsg(url, 'ok'); }
+}
+async function leaveList(id){
+  const L = LISTS[id]; if (!L || !CLOUD.user) return;
+  const uid = CLOUD.user.uid, ref = FB.fs.doc(FB.db, 'lists', id);
+  try{
+    if ((L.members || []).length <= 1 && L.owner === uid) await FB.fs.deleteDoc(ref);
+    else await FB.fs.updateDoc(ref, {members: FB.fs.arrayRemove(uid), ['memberInfo.'+uid]: FB.fs.deleteField()});
+  }catch(e){ listMsg('Could not leave right now. Try again.', 'err'); return; }
+  const name = L.name;
+  dropList(id, ''); listMsg('You left “'+name+'”.', 'ok');
+}
+// An invite link looks like #join=<id>. It is remembered so it survives signing in, even through a redirect.
+function routeJoin(){
+  const m = /^#join=([a-f0-9]{32})$/.exec(location.hash || '');
+  if (!m) return;
+  store.set('pendingJoin', m[1]);
+  try{ history.replaceState(null, '', location.pathname + location.search); }catch(e){}
+  if (CLOUD.user && CLOUD.merged) processPendingJoin();
+  else if (!store.get('cloudOn', false)){ showTab('account'); cloudMsg('Sign in to join the shared queue.', 'ok'); }
+}
+function processPendingJoin(){
+  const id = store.get('pendingJoin', '');
+  if (!isListId(id) || !CLOUD.user || !CLOUD.merged) return;
+  store.del('pendingJoin');
+  startJoin(id);
+}
+async function startJoin(id){
+  showTab('queue');
+  const card = $('joinCard');
+  if (MYLISTS.includes(id)){ card.hidden = true; setActive(id); return; }
+  card.hidden = false; card.innerHTML = '<p>Looking up the shared queue…</p>';
+  let d;
+  try{
+    const snap = await FB.fs.getDoc(FB.fs.doc(FB.db, 'lists', id));
+    if (!snap.exists()) throw new Error('gone');
+    d = snap.data();
+  }catch(e){
+    card.innerHTML = '<p>That invite link isn’t valid, or the shared queue was deleted.</p><div class="keyactions"><button type="button" class="ghost" id="joinNo">Close</button></div>';
+    $('joinNo').onclick = () => { card.hidden = true; };
+    return;
+  }
+  const names = Object.values(d.memberInfo || {}).map(m => m && m.n).filter(Boolean).join(', ');
+  card.innerHTML = '<h2>Join “'+esc(d.name || 'Shared queue')+'”?</h2>'
+    +'<p>'+(names ? 'Members: '+esc(names)+'. ' : '')+'Everyone in a shared queue can add, reorder and remove titles.</p>'
+    +'<div class="keyactions"><button type="button" class="primary syncbtn" id="joinYes">Join</button><button type="button" class="ghost" id="joinNo">No thanks</button></div>';
+  $('joinNo').onclick = () => { card.hidden = true; };
+  $('joinYes').onclick = async () => {
+    const uid = CLOUD.user.uid;
+    try{
+      await FB.fs.updateDoc(FB.fs.doc(FB.db, 'lists', id), {members: FB.fs.arrayUnion(uid), ['memberInfo.'+uid]: {n:acctName(CLOUD.user)}});
+    }catch(e){ card.innerHTML = '<p>Could not join. You may need to ask for a fresh invite link.</p>'; return; }
+    LISTS[id] = {id, name:d.name || 'Shared queue', owner:d.owner, members:(d.members || []).concat(uid), memberInfo:Object.assign({}, d.memberInfo, {[uid]:{n:acctName(CLOUD.user)}}),
+      queue:unpackQueue(d.queue || []), rev:d.rev || 0, shown:true};
+    MYLISTS.push(id); attachList(id); setActive(id); pushLists();
+    card.hidden = true; listMsg('You joined “'+LISTS[id].name+'”.', 'ok');
+  };
+}
+$('listChips').addEventListener('click', e => {
+  const b = e.target.closest && e.target.closest('button'); if (!b) return;
+  if (b.id === 'newListBtn'){ $('newListForm').hidden = false; $('newListName').focus(); return; }
+  if (b.id === 'listSignIn'){ showTab('account'); return; }
+  const id = b.getAttribute('data-list'); if (id) setActive(id);
+});
+$('listInfo').addEventListener('click', e => {
+  const b = e.target.closest && e.target.closest('[data-lact]'); if (!b) return;
+  if (b.getAttribute('data-lact') === 'invite'){ shareInvite(); return; }
+  if (leaveArmed !== ACTIVE){ leaveArmed = ACTIVE; renderListBar(); return; }
+  leaveArmed = ''; leaveList(ACTIVE);
+});
+$('newListForm').addEventListener('submit', e => {
+  e.preventDefault();
+  const name = $('newListName').value.trim().slice(0, 40);
+  if (!name) return;
+  $('newListName').value = ''; $('newListForm').hidden = true;
+  createList(name);
+});
+$('newListCancel').addEventListener('click', () => { $('newListName').value = ''; $('newListForm').hidden = true; });
+if (window.addEventListener) window.addEventListener('hashchange', routeJoin);
+
 $('cloudIn').addEventListener('click', async () => {
   if (/^__/.test(FIREBASE_CONFIG.apiKey)){ cloudMsg('Sync is not set up in this copy of the app. It is turned on in the published site.', 'err'); return; }
   if (location.protocol === 'file:'){ cloudMsg('Google sign-in only works from your web address (the GitHub Pages link), not from a file on your computer.', 'err'); return; }
@@ -962,7 +1196,7 @@ $('cloudIn').addEventListener('click', async () => {
 $('cloudOut').addEventListener('click', async () => {
   try{ if (CLOUD.unsub) CLOUD.unsub(); CLOUD.unsub = null; await FB.auth.signOut(FB.au); }catch(e){}
   CLOUD.user = null; CLOUD.merged = false; store.set('cloudOn', false); store.del('cloudRev'); CLOUD.rev = 0;
-  cloudUi(); cloudMsg('Signed out. Your queue stays on this device.', 'ok');
+  resetShared(); cloudUi(); cloudMsg('Signed out. Your queue stays on this device.', 'ok');
 });
 
 function keyMsg(t, kind){ const m = $('keyMsg'); m.textContent = t; m.className = 'keymsg' + (kind ? ' '+kind : ''); }
@@ -1288,7 +1522,9 @@ refreshKeyUi();
 $('keyCard').hidden = HAS_BUILT;
 updateQueueUi();
 cloudUi();
+renderListBar();
 cloudBoot();
+routeJoin();
 if (DEMO) enterSample();
 else { setStatus('Search for a title to see where it streams in '+REGIONS[REGION]+'.'); loadLogos(); route(); }
 </script>

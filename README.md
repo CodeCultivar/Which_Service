@@ -56,6 +56,7 @@ python3 -m http.server
 - **Services tab:** the twelve services with logos, and what the lit, $ and dimmed marks mean.
 - **Sign in:** the button at the top right of every page opens the sign-in page. **Sign in with Google** keeps your queue the same on every device you sign in on, automatically. Once signed in, the button shows your first name, and its page has **Sign out**. Only the queue is stored (in a free Firebase project, under your Google account), never your TMDB key. It works from the web address, not from a file opened on your computer.
 - **Key box:** once a working key is saved, Settings shows only **Replace key**, **Remove key** and **Use sample data**. Choose **Replace key** to show the paste box again, or **Cancel** to hide it.
+- **Shared queues:** when you are signed in, the Queue tab has a row of queues: **My queue** and any shared queues. **+ New shared queue** makes one. **Invite** shares a link (or copies it). Whoever opens the link and signs in with Google can join. Everyone in a shared queue can add, reorder, mark watched and remove titles, and changes appear on everyone's screen within a few seconds. **Add to** on a search result adds to the queue you have selected, and **Add to my queue** copies a title from a shared queue into your own. **Leave** removes you, and the last person to leave deletes the queue. Treat an invite link like a password: anyone who has it can join. If two people save at the same moment, the last save wins.
 - **Settings tab:** the TMDB key, region, "Only show titles I can watch", .
 - **Light and dark:** the page follows your system setting.
 
@@ -95,6 +96,38 @@ The published site is built by GitHub Actions (`.github/workflows/pages.yml`, `s
 **Settings:** when the build includes `TMDB_KEY`, the TMDB key box is hidden and the site always uses that key. When it doesn't (a local copy, or no secret set), the box shows so you can paste a key.
 
 **Local copy:** opening `index.html` straight from the repo has no keys filled in, so paste a TMDB key in Settings. Sync is off there. To test the build locally: `FIREBASE_API_KEY=... TMDB_KEY=... node scripts/build.mjs`, then open `dist/index.html`.
+
+## Firestore rules
+
+Sync and shared queues need these rules in Firebase (Firestore Database, Rules, Publish):
+
+```
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{db}/documents {
+    match /users/{uid} {
+      allow read, write: if request.auth != null && request.auth.uid == uid;
+    }
+    match /lists/{listId} {
+      allow get: if request.auth != null;
+      allow create: if request.auth != null
+        && request.resource.data.owner == request.auth.uid
+        && request.resource.data.members == [request.auth.uid];
+      allow update: if request.auth != null && (
+        (request.auth.uid in resource.data.members
+          && request.resource.data.owner == resource.data.owner)
+        || (request.resource.data.diff(resource.data).affectedKeys().hasOnly(['members', 'memberInfo'])
+          && request.auth.uid in request.resource.data.members
+          && request.resource.data.members.hasAll(resource.data.members)
+          && request.resource.data.members.size() == resource.data.members.size() + 1)
+      );
+      allow delete: if request.auth != null && resource.data.owner == request.auth.uid;
+    }
+  }
+}
+```
+
+A shared queue's address is a random 32-character id, and the rules do not let anyone list queues. Only people who have the id (the invite link) can open one, and only members can change it.
 
 ## Privacy and security
 
