@@ -417,6 +417,18 @@ footer{color:var(--muted);font-size:.8rem;display:flex;flex-direction:column;gap
   </div>
 
   <div class="pane" id="paneSettings" role="tabpanel" aria-labelledby="tabSettings" hidden>
+    <section class="card" aria-labelledby="optHead">
+      <h2 id="optHead">Options</h2>
+      <div class="opt">
+        <div class="opt-text"><label class="opt-name" for="region">Region</label><span class="hint">Which country's availability to check.</span></div>
+        <select id="region"></select>
+      </div>
+      <div class="opt">
+        <div class="opt-text"><label class="opt-name" for="onlyMine">Only show titles I can watch</label><span class="hint">Hides results that aren't on any of your services.</span></div>
+        <input type="checkbox" id="onlyMine">
+      </div>
+    </section>
+
     <section class="card" id="sharedCard" aria-labelledby="sharedHead">
       <h2 id="sharedHead">Shared queues</h2>
       <p id="sharedHint">You are not in any shared queues yet. Create one to share titles with other people, or open an invite link.</p>
@@ -465,18 +477,6 @@ footer{color:var(--muted);font-size:.8rem;display:flex;flex-direction:column;gap
         <button type="button" class="ghost" id="cancelReplace" hidden>Cancel</button>
         <button type="button" class="ghost" id="removeKey" hidden>Remove key</button>
         <button type="button" class="ghost" id="useSample">Use sample data</button>
-      </div>
-    </section>
-
-    <section class="card" aria-labelledby="optHead">
-      <h2 id="optHead">Options</h2>
-      <div class="opt">
-        <div class="opt-text"><label class="opt-name" for="region">Region</label><span class="hint">Which country's availability to check.</span></div>
-        <select id="region"></select>
-      </div>
-      <div class="opt">
-        <div class="opt-text"><label class="opt-name" for="onlyMine">Only show titles I can watch</label><span class="hint">Hides results that aren't on any of your services.</span></div>
-        <input type="checkbox" id="onlyMine">
       </div>
     </section>
 
