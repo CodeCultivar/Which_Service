@@ -599,6 +599,29 @@ async function tmdb(path, params={}){
   return res.json();
 }
 
+// Genre names from TMDB, fetched once and kept for 30 days.
+let GENRES = store.get('genres', null);
+async function ensureGenres(){
+  if (GENRES && GENRES.map && Date.now() - (GENRES.t || 0) < 30*864e5) return;
+  const [m, t] = await Promise.all([tmdb('/genre/movie/list'), tmdb('/genre/tv/list')]);
+  const map = {};
+  for (const g of [].concat(m.genres || [], t.genres || [])) if (Number.isInteger(g.id) && typeof g.name === 'string') map[g.id] = g.name;
+  GENRES = {t:Date.now(), map}; store.set('genres', GENRES);
+}
+function genreText(h){
+  const names = h.genre_names || (h.genre_ids || []).map(id => GENRES && GENRES.map && GENRES.map[id]).filter(Boolean);
+  return names.slice(0, 2).join(', ');
+}
+// Titles saved before genres were kept: look their genres up once and save them with the queue.
+async function fillGenres(list){
+  const missing = list.filter(h => !h.demo && !Array.isArray(h.genre_ids)).slice(0, 40);
+  if (!missing.length) return false;
+  await Promise.all(missing.map(async h => {
+    try{ const d = await tmdb('/'+h.media_type+'/'+h.id); h.genre_ids = (d.genres || []).map(g => g.id).filter(Number.isInteger).slice(0, 4); }catch(e){}
+  }));
+  return missing.some(h => Array.isArray(h.genre_ids));
+}
+
 async function providersFor(h){
   const ck = h.media_type+':'+h.id+':'+REGION;
   if (provCache.has(ck)) return provCache.get(ck);
@@ -774,7 +797,7 @@ function addToQueue(k){
   if (QUEUE.length >= MAX_QUEUE){ setStatus('A queue holds up to '+MAX_QUEUE+' titles. Remove some watched ones to add more.'); return; }
   const h = r.h;
   const item = {id:h.id, media_type:h.media_type, title:h.title, name:h.name, release_date:h.release_date, first_air_date:h.first_air_date,
-    poster_path:h.poster_path, overview:h.overview, vote_average:h.vote_average, watched:false};
+    poster_path:h.poster_path, overview:h.overview, vote_average:h.vote_average, genre_ids:(h.genre_ids || []).filter(Number.isInteger).slice(0, 4), watched:false};
   QUEUE.splice(todo().length, 0, item);       // joins the end of the to-watch list
 }
 function toggleQueue(k){
@@ -858,8 +881,11 @@ async function renderQueue(){
   if (!QUEUE.length){ paintQueue(); return; }
   if (DEMO){ list.innerHTML = ''; setQueueStatus('The queue needs a saved TMDB key to check where titles stream. Add one in Settings.'); return; }
   setQueueStatus('Checking where '+QUEUE.length+' queued '+(QUEUE.length === 1 ? 'title streams' : 'titles stream')+' in '+REGIONS[REGION]+'…', 'busy');
-  const got = await Promise.all(QUEUE.map(async h => ({h, prov: await providersFor(h).catch(() => undefined)})));
+  const [got, filled] = await Promise.all([
+    Promise.all(QUEUE.map(async h => ({h, prov: await providersFor(h).catch(() => undefined)}))),
+    ensureGenres().catch(() => {}).then(() => fillGenres(QUEUE)).catch(() => false)]);
   if (id !== queueSeq) return;
+  if (filled) saveQueue();
   queueRows = new Map(got.map(r => [keyOf(r.h), r]));
   paintQueue();
   loadCasts(got).then(() => { if (id === queueSeq) list.querySelectorAll('.cast').forEach(u => {
@@ -936,7 +962,7 @@ function rowHtml(r, ctx){
   return '<li class="row'+(isQ ? ' qrow' : '')+(open ? ' open' : '')+(isQ && h.watched ? ' watched' : '')+'"'+(isQ ? ' data-key="'+esc(keyOf(h))+'"' : '')+'>'
     +'<div class="poster'+(h.poster_path ? '' : ' noimg')+'" style="--h:'+hue(title)+'">'+poster+'</div>'
     +'<div class="info"><h3>'+(q ? '<button type="button" class="qtoggle" aria-expanded="'+open+'"><span>'+esc(title)+'</span><span class="chev" aria-hidden="true"></span></button>' : esc(title))+'</h3>'
-    +'<p class="meta"><span class="kind">'+kind+'</span>'+(year?'<span>'+esc(year)+'</span>':'')+(h.vote_average?'<span>&#9733; '+Number(h.vote_average).toFixed(1)+'</span>':'')+watch+(ctx === 'queue' ? queueCtl(h) : queueBtn(h))+'</p>'
+    +'<p class="meta"><span class="kind">'+kind+'</span>'+(genreText(h) ? '<span class="genre">'+esc(genreText(h))+'</span>' : '')+(year?'<span>'+esc(year)+'</span>':'')+(h.vote_average?'<span>&#9733; '+Number(h.vote_average).toFixed(1)+'</span>':'')+watch+(ctx === 'queue' ? queueCtl(h) : queueBtn(h))+'</p>'
     +overview
     +(r.prov === undefined ? '<p class="note">Could not load where this streams. Search again to retry.</p>' : '')
     +'<p class="sr">'+esc(v.text)+'</p></div>'
@@ -993,10 +1019,10 @@ function setStatus(t, mode){
 }
 /* ---------- Queue packing (used by cloud sync) ---------- */
 const packQueue = (arr = QUEUE) => arr.map(h => ({id:h.id, m:h.media_type, t:h.title||undefined, n:h.name||undefined, d:h.release_date||h.first_air_date||undefined,
-  p:h.poster_path||undefined, o:(h.overview||'').slice(0,260)||undefined, v:h.vote_average||undefined, w:h.watched ? 1 : undefined}));
+  p:h.poster_path||undefined, o:(h.overview||'').slice(0,260)||undefined, v:h.vote_average||undefined, g:Array.isArray(h.genre_ids) ? h.genre_ids.slice(0, 4) : undefined, w:h.watched ? 1 : undefined}));
 const unpackQueue = arr => arr.filter(x => x && Number.isInteger(x.id) && (x.m === 'movie' || x.m === 'tv')).map(x => ({
   id:x.id, media_type:x.m, title:x.t, name:x.n, release_date:x.m === 'movie' ? x.d : undefined, first_air_date:x.m === 'tv' ? x.d : undefined,
-  poster_path:typeof x.p === 'string' && /^\/[\w.-]+$/.test(x.p) ? x.p : undefined, overview:typeof x.o === 'string' ? x.o : '', vote_average:Number(x.v)||undefined, watched:!!x.w}));
+  poster_path:typeof x.p === 'string' && /^\/[\w.-]+$/.test(x.p) ? x.p : undefined, overview:typeof x.o === 'string' ? x.o : '', vote_average:Number(x.v)||undefined, genre_ids:Array.isArray(x.g) ? x.g.filter(Number.isInteger).slice(0, 4) : undefined, watched:!!x.w}));
 
 /* ---------- Automatic sync (Firebase: Google sign-in + Firestore) ---------- */
 // These identify the project and are meant to be public. The Firestore rules limit each document to its own signed-in user.
@@ -1626,7 +1652,7 @@ async function runSearch(q){
   const id = ++seq;
   setStatus('Searching…', 'busy'); $('results').innerHTML = ''; rows = [];
   try{
-    const s = await tmdb('/search/multi', {query:q, include_adult:'false'});
+    const [s] = await Promise.all([tmdb('/search/multi', {query:q, include_adult:'false'}), ensureGenres().catch(() => {})]);
     const hits = (s.results||[]).filter(r => r.media_type === 'movie' || r.media_type === 'tv').slice(0,12);
     if (id !== seq) return;
     if (!hits.length){ setStatus('No movies or shows matched “'+q+'”.'); return; }
@@ -1777,12 +1803,12 @@ $('personBody').addEventListener('click', e => {
 /* ---------- Sample data (invented titles) ---------- */
 const P = (id,name) => ({provider_id:id, provider_name:name});
 const SAMPLE = [
-  {h:{demo:1,media_type:'tv',    name:'Harbor Lights',       first_air_date:'2022-03-01', vote_average:8.1, overview:'When the lighthouse keeper of a fading port town vanishes, his estranged daughter returns to settle the estate and finds a town that would rather she left things alone.', cast:[{name:'Maren Ostrow',character:'Wren Halloran'},{name:'Dev Calloway',character:'Sheriff Pike'},{name:'Ines Valdivia',character:'Mara Voss'},{name:'Tobias Ekwueme',character:'Harlan'}]}, prov:{flatrate:[P(8,'Netflix'),P(15,'Hulu'),P(386,'Peacock')], buy:[P(2,'Apple TV')]}},
-  {h:{demo:1,media_type:'movie', title:'The Long Quiet',     release_date:'2019-10-11',   vote_average:7.4, overview:'A retired sound engineer is hired to record the last winter at a remote observatory, and begins to hear something in the silence that is not wind. A slow, patient thriller about listening too closely, with a long and unsettling final act that rewards people who stay to the end.', cast:[{name:'Sunniva Brandt',character:'Ilse'},{name:'Kofi Mensah-Arai',character:'Dr. Okafor'},{name:'Lucan Reyes',character:'Teodor'}]}, prov:{flatrate:[P(337,'Disney Plus'),P(531,'Paramount Plus')]}},
-  {h:{demo:1,media_type:'tv',    name:'Starlit Dojo',        first_air_date:'2023-04-07', vote_average:8.4, overview:'A shy student joins a night-school martial arts club that only meets under a full moon, and learns its masters are guarding more than a tradition.', cast:[{name:'Haruka Ienaga',character:'Mio'},{name:'Benedikt Aalto',character:'Master Sora'}]}, prov:{flatrate:[P(283,'Crunchyroll')]}},
-  {h:{demo:1,media_type:'movie', title:'Paper Kingdoms',     release_date:'2016-06-24',   vote_average:6.9, overview:'Two rival origami artists compete for a commission that will decide which of their families keeps the family workshop.', cast:[{name:'Odalys Marchetti',character:'Cosima'},{name:'Rennick Abara',character:'Julian'},{name:'Petra Lindqvist',character:'Aunt Edda'}]}, prov:{flatrate:[P(350,'Apple TV Plus')]}},
-  {h:{demo:1,media_type:'tv',    name:'Night Shift Kitchen', first_air_date:'2020-09-18', vote_average:7.7, overview:'The overnight crew of a downtown diner trade stories, secrets and bad coffee while the city sleeps.', cast:[{name:'Marisol Thackeray',character:'Dot'},{name:'Imran Vestergaard',character:'Cal'}]}, prov:{flatrate:[P(1899,'HBO Max'),P(2528,'YouTube TV'),P(188,'YouTube Premium')]}},
-  {h:{demo:1,media_type:'movie', title:'Salt Road',          release_date:'2024-02-02',   vote_average:7.0, overview:'A truck driver crossing a salt flat picks up a hitchhiker who claims to know where the road ends.', cast:[{name:'Anselm Okonkwo-Rhee',character:'Dale'}]}, prov:{flatrate:[P(43,'Starz')]}}
+  {h:{demo:1,genre_names:['Drama', 'Mystery'],media_type:'tv',    name:'Harbor Lights',       first_air_date:'2022-03-01', vote_average:8.1, overview:'When the lighthouse keeper of a fading port town vanishes, his estranged daughter returns to settle the estate and finds a town that would rather she left things alone.', cast:[{name:'Maren Ostrow',character:'Wren Halloran'},{name:'Dev Calloway',character:'Sheriff Pike'},{name:'Ines Valdivia',character:'Mara Voss'},{name:'Tobias Ekwueme',character:'Harlan'}]}, prov:{flatrate:[P(8,'Netflix'),P(15,'Hulu'),P(386,'Peacock')], buy:[P(2,'Apple TV')]}},
+  {h:{demo:1,genre_names:['Thriller'],media_type:'movie', title:'The Long Quiet',     release_date:'2019-10-11',   vote_average:7.4, overview:'A retired sound engineer is hired to record the last winter at a remote observatory, and begins to hear something in the silence that is not wind. A slow, patient thriller about listening too closely, with a long and unsettling final act that rewards people who stay to the end.', cast:[{name:'Sunniva Brandt',character:'Ilse'},{name:'Kofi Mensah-Arai',character:'Dr. Okafor'},{name:'Lucan Reyes',character:'Teodor'}]}, prov:{flatrate:[P(337,'Disney Plus'),P(531,'Paramount Plus')]}},
+  {h:{demo:1,genre_names:['Animation', 'Action & Adventure'],media_type:'tv',    name:'Starlit Dojo',        first_air_date:'2023-04-07', vote_average:8.4, overview:'A shy student joins a night-school martial arts club that only meets under a full moon, and learns its masters are guarding more than a tradition.', cast:[{name:'Haruka Ienaga',character:'Mio'},{name:'Benedikt Aalto',character:'Master Sora'}]}, prov:{flatrate:[P(283,'Crunchyroll')]}},
+  {h:{demo:1,genre_names:['Comedy', 'Drama'],media_type:'movie', title:'Paper Kingdoms',     release_date:'2016-06-24',   vote_average:6.9, overview:'Two rival origami artists compete for a commission that will decide which of their families keeps the family workshop.', cast:[{name:'Odalys Marchetti',character:'Cosima'},{name:'Rennick Abara',character:'Julian'},{name:'Petra Lindqvist',character:'Aunt Edda'}]}, prov:{flatrate:[P(350,'Apple TV Plus')]}},
+  {h:{demo:1,genre_names:['Comedy'],media_type:'tv',    name:'Night Shift Kitchen', first_air_date:'2020-09-18', vote_average:7.7, overview:'The overnight crew of a downtown diner trade stories, secrets and bad coffee while the city sleeps.', cast:[{name:'Marisol Thackeray',character:'Dot'},{name:'Imran Vestergaard',character:'Cal'}]}, prov:{flatrate:[P(1899,'HBO Max'),P(2528,'YouTube TV'),P(188,'YouTube Premium')]}},
+  {h:{demo:1,genre_names:['Thriller', 'Drama'],media_type:'movie', title:'Salt Road',          release_date:'2024-02-02',   vote_average:7.0, overview:'A truck driver crossing a salt flat picks up a hitchhiker who claims to know where the road ends.', cast:[{name:'Anselm Okonkwo-Rhee',character:'Dale'}]}, prov:{flatrate:[P(43,'Starz')]}}
 ];
 
 /* ---------- Settings ---------- */
