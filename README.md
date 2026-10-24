@@ -61,11 +61,11 @@ python3 -m http.server
 
 ## Host it on GitHub Pages
 
-1. In the repository, open **Settings → Pages**.
-2. Set Source to **Deploy from a branch**, then choose branch `main` and folder `/ (root)`.
-3. After a minute or two the page is live at `https://<your-user>.github.io/<repo-name>/`.
+1. In the repository, add the secrets described under **Keys and the build** below.
+2. Open **Settings → Pages** and set Source to **GitHub Actions**.
+3. Run the **Deploy to GitHub Pages** workflow (Actions tab, Run workflow), or push a change to `main`. After a minute or two the page is live at `https://<your-user>.github.io/<repo-name>/`.
 
-The hosted page is the same code for everyone: each visitor pastes their own TMDB key, which stays in their own browser. On a free GitHub account, Pages needs a public repository. Your key and settings on the hosted page are separate from the ones you saved when opening the file locally.
+If you leave out the optional `TMDB_KEY` secret, each visitor pastes their own TMDB key, which stays in their own browser. On a free GitHub account, Pages needs a public repository. Your key and settings on the hosted page are separate from the ones you saved when opening the file locally.
 
 ## Files
 
@@ -75,6 +75,8 @@ The hosted page is the same code for everyone: each visitor pastes their own TMD
 | `assets/favicon.svg` | The icon as an SVG (Chrome, Firefox and Edge tabs). |
 | `assets/icon-32.png`, `assets/icon-192.png` | PNG tab icons. Safari needs these. |
 | `assets/apple-touch-icon.png` | 180px icon used when the page is added to an iPhone or iPad home screen. |
+| `scripts/build.mjs` | Fills in the keys from secrets and writes the site to `dist/`. |
+| `.github/workflows/pages.yml` | Builds and deploys the site to GitHub Pages on each push. |
 | `docs/screenshot.png` | The screenshot above. |
 
 ## Keys and the build
