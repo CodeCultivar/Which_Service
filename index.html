@@ -153,6 +153,7 @@ select,.ghost{background:var(--surface);border:1px solid var(--line);border-radi
 .qbtn.on{background:var(--none-bg);border-color:var(--good);color:var(--good)}
 .qact[data-act=watch]{background:var(--accent);border-color:var(--accent);color:var(--accent-ink)}
 .qact[data-act=remove]{color:var(--muted)}
+.moveto{flex-basis:100%;display:flex;flex-wrap:wrap;gap:8px;align-items:center;padding:10px;border:2px dashed var(--line);border-radius:14px}.moveto b{flex-basis:100%;font-size:.85rem;color:var(--muted)}.qact[data-act=moveto]{background:var(--surface)}
 .qact:disabled{opacity:.4;cursor:default;border-color:var(--line)}
 .qact:disabled:hover{border-color:var(--line)}
 .qctl{display:flex;flex-wrap:wrap;gap:8px;align-items:center;flex-basis:100%;margin-top:8px}
@@ -163,7 +164,7 @@ select,.ghost{background:var(--surface);border:1px solid var(--line);border-radi
   .qctl [data-act=watch],.qctl [data-act=unwatch]{grid-column:span 3;order:1}
   .qctl [data-act=remove]{grid-column:span 3;order:2}
   .qctl [data-act=top],.qctl [data-act=up],.qctl [data-act=down]{grid-column:span 2;order:3}
-  .qctl [data-act=mine]{grid-column:span 6;order:4}.ghost,.tab{min-height:44px}}
+  .qctl [data-act=mine],.qctl [data-act=move]{grid-column:span 6;order:4}.qctl .moveto{grid-column:1/-1;order:5}.ghost,.tab{min-height:44px}}
 .tab .count{margin-left:6px;font-size:.8rem;font-weight:700;opacity:.85}
 @media (max-width:480px){.tabs{max-width:100%}.tab{padding:8px 10px;font-size:.88rem}.tab .count{margin-left:4px;font-size:.75rem}}
 @media (max-width:340px){.tab{padding:8px 7px;font-size:.82rem}}
@@ -676,14 +677,37 @@ const todo = () => QUEUE.filter(x => !x.watched);
 function queueCtl(h){
   const k = esc(keyOf(h));
   const b = (act, label, extra) => '<button type="button" class="qact" data-act="'+act+'" data-key="'+k+'"'+(extra||'')+'>'+label+'</button>';
+  const dests = moveTargets();
+  const mv = !dests.length ? '' : b('move','&#8644; Move to&hellip;',' aria-expanded="'+(MOVING === keyOf(h))+'"')
+    + (MOVING === keyOf(h) ? '<span class="moveto" role="group" aria-label="Move to"><b>Move this title to:</b>'
+      + dests.map(d => '<button type="button" class="qact" data-act="moveto" data-key="'+k+'" data-dest="'+esc(d.id)+'">'+esc(d.name)+'</button>').join('')
+      + '<button type="button" class="qact" data-act="move" data-key="'+k+'">Cancel</button></span>' : '');
   const mine = ACTIVE === 'me' ? '' : (PERSONAL.some(x => keyOf(x) === keyOf(h)) ? b('mine','&#10003; In my queue',' disabled') : b('mine','+ Add to my queue'));
-  if (h.watched) return '<span class="qctl">'+b('unwatch','Mark unwatched')+b('remove','Remove')+mine+'</span>';
+  if (h.watched) return '<span class="qctl">'+b('unwatch','Mark unwatched')+b('remove','Remove')+mine+mv+'</span>';
   const t = todo(), i = t.findIndex(x => keyOf(x) === keyOf(h));
   return '<span class="qctl">'+b('watch','&#10003; Mark watched')
     +b('top','&#8679; Top', i === 0 ? ' disabled' : '')
     +b('up','&#8593; Up', i === 0 ? ' disabled' : '')
     +b('down','&#8595; Down', i === t.length-1 ? ' disabled' : '')
-    +b('remove','Remove')+mine+'</span>';
+    +b('remove','Remove')+mine+mv+'</span>';
+}
+// Moving a title: pick another queue (yours or a shared one) and it leaves this one and joins the end of that one's to-watch list.
+let MOVING = '';
+function moveTargets(){
+  const t = [];
+  if (ACTIVE !== 'me') t.push({id:'me', name:'My queue'});
+  MYLISTS.forEach(id => { if (id !== ACTIVE && LISTS[id]) t.push({id, name:LISTS[id].name || 'Shared queue'}); });
+  return t;
+}
+function moveTitle(k, dest){
+  const i = QUEUE.findIndex(x => keyOf(x) === k);
+  const arr = dest === 'me' ? PERSONAL : (LISTS[dest] && LISTS[dest].queue);
+  if (i < 0 || !arr || !moveTargets().some(d => d.id === dest)) return '';
+  const [it] = QUEUE.splice(i,1);
+  if (!arr.some(x => keyOf(x) === k)) arr.splice(arr.filter(x => !x.watched).length, 0, Object.assign({}, it, {watched:false}));
+  saveQueue();                                           // the queue it left
+  if (dest === 'me'){ store.set('queue', PERSONAL); syncPush(); } else listPush(dest);
+  return dest === 'me' ? 'My queue' : LISTS[dest].name;
 }
 function updateQueueUi(){
   const c = $('qCount'), n = todo().length;
@@ -803,6 +827,13 @@ $('queueList').addEventListener('click', e => {
   const a = e.target.closest && e.target.closest('.qact');
   if (!a || a.disabled) return;
   const act = a.getAttribute('data-act'), k = a.getAttribute('data-key');
+  if (act === 'move'){ MOVING = MOVING === k ? '' : k; paintQueue(k, 'move'); return; }
+  if (act === 'moveto'){
+    const to = moveTitle(k, a.getAttribute('data-dest'));
+    MOVING = ''; OPEN.delete(k); paintQueue(); if (to) $('queueStatus').textContent += ' Moved to “'+to+'”.';
+    return;
+  }
+  MOVING = '';
   queueAct(act, k);
   paintQueue(act === 'remove' ? null : k, act);
 });
@@ -1052,7 +1083,7 @@ const inviteLink = id => location.origin + location.pathname + '#join=' + id;
 
 function setActive(id){
   if (id !== 'me' && !LISTS[id]) id = 'me';
-  ACTIVE = id; armed = ''; picking = false; $('renameForm').hidden = true; store.set('active', id);
+  ACTIVE = id; armed = ''; picking = false; MOVING = ''; $('renameForm').hidden = true; store.set('active', id);
   QUEUE = id === 'me' ? PERSONAL : (LISTS[id].queue || []);
   queueRows = new Map();
   renderListBar(); updateQueueUi(); refreshQueueViews();
