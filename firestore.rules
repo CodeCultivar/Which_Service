@@ -111,6 +111,22 @@ service cloud.firestore {
       allow update: if signedIn() && okList(request.resource.data)
         && (memberEdit() || removal() || handover() || resetLinks() || joinWithInvite(listId));
       allow delete: if signedIn() && resource.data.owner == request.auth.uid;
+
+      // Earlier versions of the queue. Members can read them and add new ones; no one can change or delete them,
+      // so a bad edit can always be undone with Restore.
+      match /history/{hid} {
+        function inList() {
+          return request.auth.uid in get(/databases/$(db)/documents/lists/$(listId)).data.members;
+        }
+        allow read: if signedIn() && inList();
+        allow create: if signedIn() && inList()
+          && request.resource.data.keys().hasOnly(['queue', 'at', 'by', 'uid', 'n'])
+          && request.resource.data.uid == request.auth.uid
+          && request.resource.data.queue is list && request.resource.data.queue.size() <= 500
+          && request.resource.data.n is int
+          && request.resource.data.at is int
+          && request.resource.data.by is string && request.resource.data.by.size() <= 40;
+      }
     }
 
     // ---------- Invite links: made by a member, good for 7 days, cancelled by Reset invite links ----------

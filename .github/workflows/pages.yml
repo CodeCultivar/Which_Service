@@ -26,6 +26,7 @@ jobs:
         env:
           FIREBASE_API_KEY: ${{ secrets.FIREBASE_API_KEY }}
           TMDB_KEY: ${{ secrets.TMDB_KEY }}
+          APPCHECK_SITE_KEY: ${{ secrets.APPCHECK_SITE_KEY }}
         run: node scripts/build.mjs
       - uses: actions/configure-pages@v5
       - uses: actions/upload-pages-artifact@v3

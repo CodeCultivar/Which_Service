@@ -5,6 +5,7 @@ import { readFileSync, writeFileSync, mkdirSync, cpSync, rmSync } from 'node:fs'
 const KEYS = [
   { name: 'FIREBASE_API_KEY', required: true,  why: 'Google sign-in and sync need it' },
   { name: 'TMDB_KEY',         required: false, why: 'without it each device pastes its own key in Settings' },
+  { name: 'APPCHECK_SITE_KEY', required: false, why: 'App Check stays off until a reCAPTCHA v3 site key is added' },
 ];
 
 let html = readFileSync('index.html', 'utf8');

@@ -280,6 +280,7 @@ a.ci:hover .svc{text-decoration:underline}
 .listinfo{display:flex;flex-direction:column;gap:12px}
 .lcard{display:flex;flex-direction:column;gap:10px;background:var(--surface);border:1px solid var(--line);border-radius:16px;padding:14px 16px}
 .lcard.cur{border-color:var(--accent)}
+.hist ol{list-style:none;margin:8px 0 0;padding:0;display:flex;flex-direction:column;gap:8px}.hist li{display:flex;justify-content:space-between;align-items:center;gap:10px;border-top:1px solid var(--line);padding-top:8px;overflow-wrap:anywhere}.hist .hint{margin:0}
 .listinfo .members{margin:0;display:flex;flex-direction:column;gap:2px;overflow-wrap:anywhere}
 .listinfo .members span{color:var(--muted);font-size:.95rem}
 .syncbtn{min-height:48px;padding:0 22px;border-radius:14px}
@@ -999,6 +1000,7 @@ const FIREBASE_CONFIG = {
 };
 const ADMIN_EMAIL = 'tjmaco@gmail.com';   // only this Google account sees the Admin page; the Firestore rules decide who can read the numbers
 const isAdmin = u => !!u && u.emailVerified !== false && String(u.email || '').toLowerCase() === ADMIN_EMAIL;
+const APPCHECK_KEY = '__APPCHECK_SITE_KEY__';   // reCAPTCHA v3 site key, filled in by the build when the secret is set
 const FB_VER = '10.14.1', FB_BASE = 'https://www.gstatic.com/firebasejs/'+FB_VER+'/';
 let FB = null, CLOUD = {user:null, ref:null, unsub:null, merged:false, rev:store.get('cloudRev', 0)};
 const cloudMsg = (t, kind) => { const m = $('cloudMsg'); m.textContent = t; m.className = 'keymsg' + (kind ? ' '+kind : ''); };
@@ -1007,6 +1009,14 @@ async function loadFirebase(){
   if (FB) return FB;
   const [app, auth, fs] = await Promise.all([import(FB_BASE+'firebase-app.js'), import(FB_BASE+'firebase-auth.js'), import(FB_BASE+'firebase-firestore.js')]);
   const a = app.initializeApp(FIREBASE_CONFIG);
+  // App Check proves requests come from this site (reCAPTCHA v3), so a copied API key can't be used from a script.
+  // Only on when the build includes a site key; enforcement is switched on in the Firebase console.
+  if (!/^__/.test(APPCHECK_KEY)){
+    try{
+      const ac = await import(FB_BASE+'firebase-app-check.js');
+      ac.initializeAppCheck(a, {provider: new ac.ReCaptchaV3Provider(APPCHECK_KEY), isTokenAutoRefreshEnabled: true});
+    }catch(e){ console.warn('App Check did not start', e); }
+  }
   FB = {app, auth, fs, a, au: auth.getAuth(a), db: fs.getFirestore(a)};
   return FB;
 }
@@ -1187,10 +1197,11 @@ function renderListBar(){
       +'<div class="keyactions"><button type="button" class="ghost" data-lact="open">Open</button>'
       +'<button type="button" class="ghost" data-lact="invite">Invite</button>'
       +'<button type="button" class="ghost" data-lact="rename">Rename</button>'
+      +'<button type="button" class="ghost" data-lact="hist" aria-expanded="'+(HIST_OPEN === id)+'">'+(HIST_OPEN === id ? 'Hide history' : 'History')+'</button>'
       +(mine ? '<button type="button" class="ghost" data-lact="reset">'+(armed === id+':reset' ? 'Tap again to cancel all links' : 'Reset invite links')+'</button>' : '')
       +'<button type="button" class="ghost" data-lact="leave">'+(armed === id+':leave' ? 'Tap again to leave' : 'Leave')+'</button>'
       +(mine ? '<button type="button" class="ghost danger" data-lact="delete">'+(armed === id+':delete' ? 'Tap again to delete for everyone' : 'Delete queue')+'</button>' : '')
-      +'</div></div>';
+      +'</div>'+histHtml(id)+'</div>';
   }).join('');
 }
 function attachList(id){
@@ -1203,7 +1214,7 @@ function attachList(id){
     const oldName = L.name;
     L.name = d.name || 'Shared queue'; L.owner = d.owner; L.members = d.members; L.memberInfo = d.memberInfo || {}; L.inviteGen = d.inviteGen || 0;
     const changed = (d.rev || 0) !== L.rev;            // our own saves carry the rev we already hold
-    if (changed){ L.queue = unpackQueue(d.queue || []); L.rev = d.rev || 0; if (ACTIVE === id) QUEUE = L.queue; }
+    if (changed){ L.queue = unpackQueue(d.queue || []); L.rev = d.rev || 0; L.saved = JSON.stringify(JSON.parse(JSON.stringify(packQueue(L.queue)))); if (ACTIVE === id) QUEUE = L.queue; }
     if (ACTIVE === 'me' && !L.shown && store.get('active', 'me') === id){ L.shown = true; setActive(id); return; }
     renderListBar();
     if (ACTIVE === id){ updateQueueUi(); if (changed || (oldName && oldName !== L.name)) refreshQueueViews(); }
@@ -1242,11 +1253,28 @@ function listPush(id){
     const L = LISTS[id];
     if (!L || !FB) return;
     if (L.rev < 0){ listPush(id); return; }          // just joined: wait for the first copy so nothing is overwritten
-    const rev = Date.now();
+    const rev = Date.now(), packed = JSON.parse(JSON.stringify(packQueue(L.queue))), now = JSON.stringify(packed);
+    // Keep a copy of the version being replaced when titles are removed, on a restore, or every 30 minutes of edits.
+    // History can only be added to, never changed or deleted, so a bad edit can always be undone from Settings.
+    let hist = null;
+    if (L.saved && L.saved !== now && L.saved !== '[]'){
+      const before = JSON.parse(L.saved), keys = new Set(packed.map(x => x.m+':'+x.id));
+      const removed = before.some(x => !keys.has(x.m+':'+x.id));
+      if (removed || L.forceHist || rev - (L.histAt || 0) > 30*60e3) hist = before;
+    }
+    L.forceHist = false;
     try{
       L.rev = rev;
-      await FB.fs.updateDoc(FB.fs.doc(FB.db, 'lists', id), JSON.parse(JSON.stringify({queue:packQueue(L.queue), rev, updated:rev})));
+      const b = FB.fs.writeBatch(FB.db);
+      if (hist){
+        b.set(FB.fs.doc(FB.db, 'lists', id, 'history', newListId()), {queue:hist, at:rev, by:acctName(CLOUD.user).slice(0,40), uid:CLOUD.user.uid, n:hist.length});
+        L.histAt = rev; if (HIST[id]) delete HIST[id];
+      }
+      b.update(FB.fs.doc(FB.db, 'lists', id), {queue:packed, rev, updated:rev});
+      await b.commit();
+      L.saved = now;
       listMsg('Saved to “'+L.name+'”.', 'ok');
+      if (HIST_OPEN === id) loadHistory(id);
     }catch(e){ listMsg('Could not save to the shared queue. Check your connection and try again.', 'err'); }
   }, 400);
 }
@@ -1260,7 +1288,7 @@ async function createList(name){
     b.set(CLOUD.ref, {created: FB.fs.increment(1), lists: FB.fs.arrayUnion(id)}, {merge:true});
     await b.commit();
   }catch(e){ listMsg('Could not create the shared queue. Each account can create up to '+MAX_CREATED+' shared queues; if you are under that, check that the Firestore rules were updated.', 'err'); return; }
-  LISTS[id] = {id, name, owner:uid, members:[uid], memberInfo:info, queue:[], rev:now, shown:true};
+  LISTS[id] = {id, name, owner:uid, members:[uid], memberInfo:info, queue:[], rev:now, saved:'[]', shown:true};
   if (!MYLISTS.includes(id)) MYLISTS.push(id); attachList(id); setActive(id); pushLists();
   listMsg('Created “'+name+'”. Choose Invite to add people.', 'ok');
 }
@@ -1278,6 +1306,32 @@ async function shareInvite(id){
   }
   try{ await navigator.clipboard.writeText(url); listMsg('Invite link copied. '+note, 'ok'); }
   catch(e){ listMsg(url+' — '+note, 'ok'); }
+}
+let HIST_OPEN = '';          // id of the shared queue whose history is open in Settings
+const HIST = {};             // id -> [{hid, at, by, n, queue}] newest first
+async function loadHistory(id){
+  try{
+    const f = FB.fs, snap = await f.getDocs(f.query(f.collection(FB.db, 'lists', id, 'history'), f.orderBy('at', 'desc'), f.limit(15)));
+    HIST[id] = snap.docs.map(d => Object.assign({hid:d.id}, d.data()));
+  }catch(e){ HIST[id] = null; listMsg('Could not load the history. Check that the Firestore rules were updated.', 'err'); }
+  renderListBar();
+}
+function restoreVersion(id, hid){
+  const L = LISTS[id], h = (HIST[id] || []).find(x => x.hid === hid);
+  if (!L || !h) return;
+  L.queue = unpackQueue(h.queue || []);
+  if (ACTIVE === id){ QUEUE = L.queue; queueRows = new Map(); updateQueueUi(); refreshQueueViews(); }
+  L.forceHist = true; listPush(id);                    // the version being replaced is kept too, so a restore can be undone
+  listMsg('Restored “'+L.name+'” to the version from '+new Date(h.at).toLocaleString()+'.', 'ok');
+}
+function histHtml(id){
+  if (HIST_OPEN !== id) return '';
+  const H = HIST[id];
+  if (H === undefined) return '<div class="hist"><p class="hint">Loading history…</p></div>';
+  if (!H || !H.length) return '<div class="hist"><p class="hint">No earlier versions yet. A copy is kept whenever titles are removed, and every half hour of changes.</p></div>';
+  return '<div class="hist"><p class="hint">Earlier versions, newest first. Restoring keeps the current version here too.</p><ol>'+H.map(h =>
+    '<li><span><strong>'+esc(new Date(h.at).toLocaleString([], {month:'short', day:'numeric', hour:'numeric', minute:'2-digit'}))+'</strong> · '+(Number(h.n) || 0)+((Number(h.n) || 0) === 1 ? ' title' : ' titles')+'<br><span class="hint">Before a change by '+esc(h.by || 'someone')+'</span></span>'
+    +'<button type="button" class="ghost" data-lact="restore" data-hid="'+esc(h.hid)+'">'+(armed === id+':restore:'+h.hid ? 'Tap again to restore' : 'Restore')+'</button></li>').join('')+'</ol></div>';
 }
 async function resetInvites(id){
   const L = LISTS[id]; if (!L || !CLOUD.user || L.owner !== CLOUD.user.uid) return;
@@ -1400,15 +1454,17 @@ $('listInfo').addEventListener('click', e => {
   const act = b.getAttribute('data-lact');
   if (act === 'cancelpick'){ picking = ''; renderListBar(); return; }
   if (act === 'open'){ armed = ''; setActive(id); showTab('queue'); return; }
+  if (act === 'hist'){ armed = ''; HIST_OPEN = HIST_OPEN === id ? '' : id; if (HIST_OPEN){ delete HIST[id]; loadHistory(id); } renderListBar(); return; }
   if (act === 'leave' && CLOUD.user && L.owner === CLOUD.user.uid && (L.members || []).length > 1){   // the creator must hand over first
     armed = ''; picking = id; renderListBar(); return;
   }
   if (act === 'invite'){ armed = ''; renderListBar(); shareInvite(id); return; }
   if (act === 'rename'){ armed = ''; renderListBar(); renameId = id; $('renameForm').hidden = false; $('renameName').value = L.name; $('renameName').focus(); $('renameName').select(); return; }
-  const tag = act === 'kick' ? id+':kick:'+b.getAttribute('data-uid') : id+':'+act;
+  const tag = act === 'kick' ? id+':kick:'+b.getAttribute('data-uid') : act === 'restore' ? id+':restore:'+b.getAttribute('data-hid') : id+':'+act;
   if (armed !== tag){ armed = tag; renderListBar(); return; }       // leave, delete, reset and remove all need a second tap
   armed = '';
   if (act === 'kick'){ removeMember(id, b.getAttribute('data-uid')); return; }
+  if (act === 'restore'){ restoreVersion(id, b.getAttribute('data-hid')); return; }
   if (act === 'reset'){ resetInvites(id); renderListBar(); return; }
   if (act === 'leave') leaveList(id); else deleteList(id);
 });

@@ -56,7 +56,7 @@ python3 -m http.server
 - **Services tab:** the twelve services with logos, and what the lit, $ and dimmed marks mean.
 - **Sign in:** the button at the top right of every page opens the sign-in page. **Sign in with Google** keeps your queue the same on every device you sign in on, automatically. Once signed in, the button shows your first name, and its page has **Sign out**. Only the queue is stored (in a free Firebase project, under your Google account), never your TMDB key. It works from the web address, not from a file opened on your computer.
 - **Key box:** once a working key is saved, Settings shows only **Replace key**, **Remove key** and **Use sample data**. Choose **Replace key** to show the paste box again, or **Cancel** to hide it.
-- **Shared queues:** when you are signed in, the Queue tab has a row of queues to switch between: **My queue** and any shared queues. Managing them is on the **Settings** tab (the Queue tab links there with **Manage in Settings**): **+ New shared queue** makes one, and every shared queue you are in gets its own card there with its members and **Open**, **Invite**, **Rename**, **Leave** and **Delete queue**. **Invite** shares a link (or copies it) that works for 7 days. Whoever opens the link and signs in with Google can join. The creator can **Remove** a member (which also cancels old links) and **Reset invite links** at any time. Everyone in a shared queue can add, reorder, mark watched and remove titles, and changes appear on everyone's screen within a few seconds. **Add to** on a search result adds to the queue you have selected, and **Add to my queue** copies a title from a shared queue into your own. **Rename** lets any member change the queue's name. **Leave** removes you (if you created the queue and others are in it, you first pick who takes over), and the last person to leave deletes the queue. Only the person who created a queue sees **Delete queue**, which deletes it for everyone after a second tap. Treat an invite link like a password until it expires: anyone who has it can join. Invite links made before this change no longer work. If two people save at the same moment, the last save wins.
+- **Shared queues:** when you are signed in, the Queue tab has a row of queues to switch between: **My queue** and any shared queues. Managing them is on the **Settings** tab (the Queue tab links there with **Manage in Settings**): **+ New shared queue** makes one, and every shared queue you are in gets its own card there with its members and **Open**, **Invite**, **Rename**, **Leave** and **Delete queue**. **Invite** shares a link (or copies it) that works for 7 days. Whoever opens the link and signs in with Google can join. The creator can **Remove** a member (which also cancels old links) and **Reset invite links** at any time. **History** on a queue's card lists earlier versions (a copy is kept whenever titles are removed, on a restore, and every half hour of changes); **Restore** puts one back, and the version it replaces is kept too, so a restore can be undone. Everyone in a shared queue can add, reorder, mark watched and remove titles, and changes appear on everyone's screen within a few seconds. **Add to** on a search result adds to the queue you have selected, and **Add to my queue** copies a title from a shared queue into your own. **Rename** lets any member change the queue's name. **Leave** removes you (if you created the queue and others are in it, you first pick who takes over), and the last person to leave deletes the queue. Only the person who created a queue sees **Delete queue**, which deletes it for everyone after a second tap. Treat an invite link like a password until it expires: anyone who has it can join. Invite links made before this change no longer work. If two people save at the same moment, the last save wins.
 - **My services:** in Settings, check or uncheck each of the twelve services. Unchecked ones are treated as not yours: they no longer count toward "on your services", the queue summary lines, or **Only show titles I can watch**, and they are dimmed on the Services tab. The choice is saved on the device, and in your account when signed in, so it follows you across devices.
 - **Collapsible rows:** each queued title is collapsed by default to its name, a short description and a line of the services that have it. Tap a row (title or poster) to open it and see the cast, the full service grid and the controls; tap again to close. **Expand all / Collapse all** above the queue does every row at once.
 - **Move to another queue:** open a title and tap **Move to…** to send it from your queue to a shared queue (or from a shared queue back to yours, or between shared queues). It leaves the current queue and joins the end of the other one's to-watch list, unwatched.
@@ -90,6 +90,7 @@ The published site is built by GitHub Actions (`.github/workflows/pages.yml`, `s
 | Secret | Fills in | Needed |
 | --- | --- | --- |
 | `FIREBASE_API_KEY` | `__FIREBASE_API_KEY__` (Google sign-in and sync) | Yes, the build fails without it |
+| `APPCHECK_SITE_KEY` | `__APPCHECK_SITE_KEY__` (turns on Firebase App Check) | No. See App Check below |
 | `TMDB_KEY` | `__TMDB_KEY__` (the site works on every device with no pasting) | No. Without it each device pastes its own key in Settings |
 
 **These keys are still visible in the published page.** A static site has to send them to the browser. Secrets keep them out of the repository's source and history, not out of view. To limit misuse, restrict the Firebase key to your site in Google Cloud (Credentials, your API key, Websites, `https://codecultivar.github.io/*`). TMDB keys are free and can be revoked. The Firestore rules are what protect your queue.
@@ -218,6 +219,22 @@ service cloud.firestore {
       allow update: if signedIn() && okList(request.resource.data)
         && (memberEdit() || removal() || handover() || resetLinks() || joinWithInvite(listId));
       allow delete: if signedIn() && resource.data.owner == request.auth.uid;
+
+      // Earlier versions of the queue. Members can read them and add new ones; no one can change or delete them,
+      // so a bad edit can always be undone with Restore.
+      match /history/{hid} {
+        function inList() {
+          return request.auth.uid in get(/databases/$(db)/documents/lists/$(listId)).data.members;
+        }
+        allow read: if signedIn() && inList();
+        allow create: if signedIn() && inList()
+          && request.resource.data.keys().hasOnly(['queue', 'at', 'by', 'uid', 'n'])
+          && request.resource.data.uid == request.auth.uid
+          && request.resource.data.queue is list && request.resource.data.queue.size() <= 500
+          && request.resource.data.n is int
+          && request.resource.data.at is int
+          && request.resource.data.by is string && request.resource.data.by.size() <= 40;
+      }
     }
 
     // ---------- Invite links: made by a member, good for 7 days, cancelled by Reset invite links ----------
@@ -242,7 +259,18 @@ What the rules enforce:
 - **Shared queues are members-only.** Only members can read one (the owner's Google account can also count them for the Admin page).
 - **Invite links expire and can be cancelled.** Invite makes a separate one-off code good for 7 days. Joining requires a live code for that queue. The creator's **Reset invite links** cancels every link sent so far, and removing a member does that automatically.
 - **Members can only change the titles and the name.** Joining adds only yourself, leaving removes only yourself, only the creator can remove someone else, hand the queue over, reset links or delete it.
+- **History can't be erased.** Earlier versions of a shared queue can be added and read by members but never changed or deleted.
 - **Limits:** queue names up to 40 characters, up to 500 titles in a queue, up to 20 people in a shared queue, and up to 50 shared queues created per account (a counter on your account that can only go up).
+
+## App Check (optional, recommended)
+
+App Check makes Firebase accept only requests that come from this site, so someone who copies the public API key can't script against your database.
+
+1. Firebase console, **App Check**, **Apps**, your web app, **Register** with **reCAPTCHA v3**. It asks for a reCAPTCHA site key: create one at the reCAPTCHA admin console (type v3, domain `codecultivar.github.io`), paste the **secret key** into Firebase, and keep the **site key**.
+2. Add the site key as the repository secret `APPCHECK_SITE_KEY` and push (or re-run the workflow).
+3. Back in App Check, open **APIs**, **Cloud Firestore**, and watch the metrics for a day. When nearly all requests show as verified, click **Enforce**. Unverified requests are then refused.
+
+If something breaks after enforcing, click **Unenforce** to switch it off immediately. Leave Authentication unenforced.
 
 ## Admin page
 
