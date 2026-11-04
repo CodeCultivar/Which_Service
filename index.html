@@ -1041,8 +1041,12 @@ const FB_VER = '10.14.1', FB_BASE = 'https://www.gstatic.com/firebasejs/'+FB_VER
 let FB = null, CLOUD = {user:null, ref:null, unsub:null, merged:false, rev:store.get('cloudRev', 0)};
 const cloudMsg = (t, kind) => { const m = $('cloudMsg'); m.textContent = t; m.className = 'keymsg' + (kind ? ' '+kind : ''); };
 
-async function loadFirebase(){
-  if (FB) return FB;
+let fbLoading = null;
+function loadFirebase(){
+  if (FB) return Promise.resolve(FB);
+  return fbLoading || (fbLoading = loadFirebaseNow().catch(e => { fbLoading = null; throw e; }));
+}
+async function loadFirebaseNow(){
   const [app, auth, fs] = await Promise.all([import(FB_BASE+'firebase-app.js'), import(FB_BASE+'firebase-auth.js'), import(FB_BASE+'firebase-firestore.js')]);
   const a = app.initializeApp(FIREBASE_CONFIG);
   // App Check proves requests come from this site (reCAPTCHA v3), so a copied API key can't be used from a script.
@@ -1053,7 +1057,12 @@ async function loadFirebase(){
       ac.initializeAppCheck(a, {provider: new ac.ReCaptchaV3Provider(APPCHECK_KEY), isTokenAutoRefreshEnabled: true});
     }catch(e){ console.warn('App Check did not start', e); }
   }
-  FB = {app, auth, fs, a, au: auth.getAuth(a), db: fs.getFirestore(a)};
+  // Keep the sign-in in IndexedDB with localStorage as a backup. iPhone Home Screen apps sometimes lose the
+  // IndexedDB copy between launches, which made people sign in every time.
+  let au;
+  try{ au = auth.initializeAuth(a, {persistence:[auth.indexedDBLocalPersistence, auth.browserLocalPersistence], popupRedirectResolver:auth.browserPopupRedirectResolver}); }
+  catch(e){ au = auth.getAuth(a); }
+  FB = {app, auth, fs, a, au, db: fs.getFirestore(a)};
   return FB;
 }
 function acctName(u){
@@ -1521,28 +1530,33 @@ $('newListForm').addEventListener('submit', e => {
 $('newListCancel').addEventListener('click', () => { $('newListName').value = ''; $('newListForm').hidden = true; });
 if (window.addEventListener) window.addEventListener('hashchange', routeJoin);
 
-$('cloudIn').addEventListener('click', async () => {
+// Safari only opens the Google window if it is opened straight from the tap. So the sign-in code is loaded
+// ahead of time (when the account page opens), and the tap opens the window before anything else waits.
+function canCloud(){ return !/^__/.test(FIREBASE_CONFIG.apiKey) && location.protocol !== 'file:'; }
+function preloadFirebase(){ if (canCloud() && !FB) loadFirebase().catch(() => {}); }
+async function googleSignIn(){
+  const provider = new FB.auth.GoogleAuthProvider();
+  store.set('cloudOn', true);
+  try{
+    const r = await FB.auth.signInWithPopup(FB.au, provider);
+    if (!CLOUD.user) startListening(r.user);
+    cloudMsg('Signed in. Syncing…', 'ok');
+  }catch(e){
+    if (e && (e.code === 'auth/popup-blocked' || e.code === 'auth/operation-not-supported-in-this-environment')){
+      cloudMsg('Redirecting to Google…'); await FB.auth.signInWithRedirect(FB.au, provider); return;
+    }
+    if (e && (e.code === 'auth/popup-closed-by-user' || e.code === 'auth/cancelled-popup-request')){ cloudMsg('Sign-in cancelled.'); store.set('cloudOn', !!CLOUD.user); return; }
+    if (e && e.code === 'auth/unauthorized-domain'){ cloudMsg('This web address is not allowed yet. Add it under Authentication, Settings, Authorized domains in Firebase.', 'err'); store.set('cloudOn', false); return; }
+    cloudMsg('Sign-in failed'+(e && e.code ? ' ('+e.code+')' : '')+'. Try again.', 'err'); store.set('cloudOn', !!CLOUD.user); return;
+  }
+  if (!CLOUD.unsub) cloudBoot();
+}
+$('cloudIn').addEventListener('click', () => {
   if (/^__/.test(FIREBASE_CONFIG.apiKey)){ cloudMsg('Sync is not set up in this copy of the app. It is turned on in the published site.', 'err'); return; }
   if (location.protocol === 'file:'){ cloudMsg('Google sign-in only works from your web address (the GitHub Pages link), not from a file on your computer.', 'err'); return; }
-  cloudMsg('Opening Google sign-in…');
-  try{
-    await loadFirebase();
-    const provider = new FB.auth.GoogleAuthProvider();
-    store.set('cloudOn', true);
-    try{
-      const r = await FB.auth.signInWithPopup(FB.au, provider);
-      if (!CLOUD.user) startListening(r.user);
-      cloudMsg('Signed in. Syncing…', 'ok');
-    }catch(e){
-      if (e && (e.code === 'auth/popup-blocked' || e.code === 'auth/operation-not-supported-in-this-environment')){
-        cloudMsg('Redirecting to Google…'); await FB.auth.signInWithRedirect(FB.au, provider); return;
-      }
-      if (e && (e.code === 'auth/popup-closed-by-user' || e.code === 'auth/cancelled-popup-request')){ cloudMsg('Sign-in cancelled.'); store.set('cloudOn', !!CLOUD.user); return; }
-      if (e && e.code === 'auth/unauthorized-domain'){ cloudMsg('This web address is not allowed yet. Add it under Authentication, Settings, Authorized domains in Firebase.', 'err'); store.set('cloudOn', false); return; }
-      throw e;
-    }
-    if (!CLOUD.unsub) cloudBoot();
-  }catch(e){ cloudMsg('Sign-in failed'+(e && e.code ? ' ('+e.code+')' : '')+'. Try again.', 'err'); store.set('cloudOn', !!CLOUD.user); }
+  if (FB){ cloudMsg('Opening Google sign-in…'); googleSignIn(); return; }      // no waiting before the window opens
+  cloudMsg('Loading sign-in…');
+  loadFirebase().then(googleSignIn, () => cloudMsg('Could not load sign-in. Check your connection.', 'err'));
 });
 $('cloudOut').addEventListener('click', async () => {
   try{ if (CLOUD.unsub) CLOUD.unsub(); CLOUD.unsub = null; await FB.auth.signOut(FB.au); }catch(e){}
@@ -1584,6 +1598,7 @@ function showTab(name){
     $(id).setAttribute('aria-selected', String(name === n));
     $(id).tabIndex = name === n || ((person || account || admin) && n === lastTab) ? 0 : -1;
   });
+  if (account) preloadFirebase();
   if (account) $('acct').setAttribute('aria-current', 'page'); else $('acct').removeAttribute('aria-current');
   if (name === 'queue') renderQueue();
 }
